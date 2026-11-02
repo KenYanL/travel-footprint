@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Rebuild the fictional README demo from a fixed seed.
 
-Picks countries and US states at random, drops a city dot at a random
-coordinate inside each one, and writes demo/travel.yml plus the preview PNGs.
-Nothing in that file is a real itinerary. ``--out`` writes the same files
-somewhere else and leaves the committed demo alone.
+Picks countries and US states at random, drops city dots at random
+coordinates inside those shapes, and writes demo/travel.yml plus the preview
+PNGs. Nothing in that file is a real itinerary. Sensitive and disputed
+countries are left out. ``--out`` writes the same files somewhere else and
+leaves the committed demo alone.
 
     python3 scripts/make_demo.py
     python3 scripts/make_demo.py --out /tmp/travel-demo
@@ -40,12 +41,56 @@ from footprint import (  # noqa: E402
 
 # Same seed always rebuilds the same places and the same PNGs.
 SEED = 20261102
-COUNTRY_COUNT = 6
-STATE_COUNT = 5
-# Square degrees in the source CRS. Small enough islands disappear on the world map.
-MIN_AREA = 20.0
+STATE_COUNT = 10
+CITY_COUNT = 50
+# Square degrees in the source CRS. Small islands disappear on the world map.
+MIN_AREA = 8.0
 # A day that is neither Halloween nor Christmas. The demo palette is explicit.
 DEMO_DAY = date(2026, 6, 1)
+
+# How many countries to take from each continent, in this order. The sum is
+# the demo's country count (32), inside the 25-35 range.
+CONTINENT_QUOTAS: tuple[tuple[str, int], ...] = (
+    ("Africa", 7),
+    ("Asia", 7),
+    ("Europe", 6),
+    ("North America", 4),
+    ("South America", 5),
+    ("Oceania", 3),
+)
+
+# Natural Earth marks some units Disputed or Indeterminate; those are skipped
+# too. This list is the additional set of places the sample must not use.
+EXCLUDED_COUNTRIES = frozenset(
+    {
+        "AFG",  # Afghanistan
+        "BLR",  # Belarus
+        "CUB",  # Cuba
+        "CYN",  # N. Cyprus
+        "ESH",  # Western Sahara
+        "IRN",  # Iran
+        "IRQ",  # Iraq
+        "ISR",  # Israel
+        "KOS",  # Kosovo
+        "LBY",  # Libya
+        "MMR",  # Myanmar
+        "PRK",  # North Korea
+        "PSE",  # Palestine
+        "PSX",  # Palestine
+        "RUS",  # Russia
+        "SAH",  # Western Sahara
+        "SDN",  # Sudan
+        "SDS",  # South Sudan
+        "SSD",  # South Sudan
+        "SOL",  # Somaliland
+        "SYR",  # Syria
+        "TWN",  # Taiwan
+        "UKR",  # Ukraine
+        "VEN",  # Venezuela
+        "YEM",  # Yemen
+    }
+)
+DISPUTED_TYPES = frozenset({"Disputed", "Indeterminate"})
 
 
 def _clamp(lon: float, lat: float) -> tuple[float, float]:
@@ -69,6 +114,15 @@ def _random_point(rng: random.Random, geom) -> tuple[float, float]:
     return _clamp(float(point.x), float(point.y))
 
 
+def _separated_point(rng: random.Random, geom, placed: list[tuple[float, float]]) -> tuple[float, float]:
+    """A point inside ``geom`` that is not on top of one already chosen."""
+    for _ in range(40):
+        lon, lat = _random_point(rng, geom)
+        if all(abs(lon - other_lon) + abs(lat - other_lat) > 4 for other_lon, other_lat in placed):
+            return lon, lat
+    return _random_point(rng, geom)
+
+
 def synthetic_config(rng: random.Random | None = None) -> TravelConfig:
     """Random fictional places. The default generator is ``random.Random(SEED)``."""
     rng = random.Random(SEED) if rng is None else rng
@@ -76,30 +130,57 @@ def synthetic_config(rng: random.Random | None = None) -> TravelConfig:
     states = read_admin1_usa()
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
-        areas = countries.geometry.area
-    pool = sorted(
-        code
-        for code, area in zip(countries["adm0_a3"], areas)
-        if area > MIN_AREA and code != "USA"
-    )
-    if len(pool) < COUNTRY_COUNT:
-        raise RuntimeError(f"only {len(pool)} countries are large enough for the demo")
-    chosen_countries = sorted(rng.sample(pool, COUNTRY_COUNT))
-    state_names = sorted(states["name"].unique())
+        area_by_code = {
+            code: float(area)
+            for code, area in zip(countries["adm0_a3"], countries.geometry.area)
+        }
+    pools: dict[str, list[str]] = {name: [] for name, _quota in CONTINENT_QUOTAS}
+    for row in countries.itertuples(index=False):
+        code = str(row.adm0_a3)
+        if code == "USA" or code in EXCLUDED_COUNTRIES:
+            continue
+        if str(row.TYPE) in DISPUTED_TYPES:
+            continue
+        if area_by_code[code] <= MIN_AREA:
+            continue
+        if row.CONTINENT in pools:
+            pools[row.CONTINENT].append(code)
+    chosen: list[str] = []
+    for continent, quota in CONTINENT_QUOTAS:
+        pool = sorted(set(pools[continent]))
+        if len(pool) < quota:
+            raise RuntimeError(
+                f"only {len(pool)} {continent} countries are available for the demo; need {quota}"
+            )
+        chosen.extend(rng.sample(pool, quota))
+    chosen_countries = sorted(chosen)
+    state_names = sorted(name for name in states["name"].unique())
+    if len(state_names) < STATE_COUNT:
+        raise RuntimeError(f"only {len(state_names)} US states are available for the demo")
     chosen_states = sorted(rng.sample(state_names, STATE_COUNT))
 
     by_country = {row.adm0_a3: row.geometry for row in countries.itertuples(index=False)}
     by_state = {row.name: row.geometry for row in states.itertuples(index=False)}
+    extra_countries = sorted(chosen_countries, key=lambda code: (-area_by_code[code], code))[
+        : CITY_COUNT - len(chosen_countries) - len(chosen_states)
+    ]
     cities: list[City] = []
-    number = 1
+    placed: list[tuple[float, float]] = []
+
+    def add_city(geom) -> None:
+        lon, lat = _separated_point(rng, geom, placed)
+        placed.append((lon, lat))
+        cities.append(City(f"Site {len(cities) + 1:02d}", lat, lon))
+
+    extras = set(extra_countries)
     for code in chosen_countries:
-        lon, lat = _random_point(rng, by_country[code])
-        cities.append(City(f"Site {number:02d}", lat, lon))
-        number += 1
+        add_city(by_country[code])
+        if code in extras:
+            add_city(by_country[code])
     for name in chosen_states:
-        lon, lat = _random_point(rng, by_state[name])
-        cities.append(City(f"Site {number:02d}", lat, lon))
-        number += 1
+        add_city(by_state[name])
+    if not (40 <= len(cities) <= 60):
+        raise RuntimeError(f"demo city count is {len(cities)}, expected 40 to 60")
     return TravelConfig(
         countries=tuple(chosen_countries),
         us_states=tuple(chosen_states),

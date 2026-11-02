@@ -26,7 +26,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import yaml
+from matplotlib.colors import to_rgb
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path as MplPath
 from shapely.affinity import translate
 from shapely.geometry import box
 from shapely.ops import unary_union
@@ -71,30 +75,38 @@ THEMES: dict[str, dict[str, str]] = {
     },
 }
 
-# ``visited`` fills a whole country or a highlighted state.
-# ``tier`` fills a country when only some of its states are listed.
-# ``dot`` is the city marker. Dark values for halloween and christmas are the
-# ones named in the action contract. Light values are the readable equivalents
-# on a white background (darker city dots, because cream and yellow vanish).
+# ``visited`` fills a whole country, or a listed subdivision and nothing else.
+# ``stripe``, when set, is painted as diagonal bands over that fill.
+# ``dot`` is the city marker. Light dots are darker where a light color would
+# disappear on white; Christmas keeps the cream dot on both themes because the
+# dot sits on the red and green bands.
 PALETTES: dict[str, dict[str, dict[str, str]]] = {
     "default": {
-        "dark": {"visited": "#3fb950", "tier": "#1f6f35", "dot": "#ffffff"},
-        "light": {"visited": "#1a7f37", "tier": "#4ac26b", "dot": "#1f2328"},
+        "dark": {"visited": "#3fb950", "dot": "#ffffff"},
+        "light": {"visited": "#1a7f37", "dot": "#1f2328"},
     },
     "halloween": {
-        # Dark orange, burnt orange, and yellow from GitHub Primer
-        # @primer/primitives 11.10.0, dark --contribution-halloween-bgColor.
-        "dark": {"visited": "#c46212", "tier": "#984b10", "dot": "#e3d04f"},
-        "light": {"visited": "#c46212", "tier": "#f68c41", "dot": "#1f2328"},
+        # Orange and yellow from GitHub Primer @primer/primitives 11.10.0,
+        # dark --contribution-halloween-bgColor. The light map keeps the same
+        # orange fill and uses a dark dot so it stays visible on white.
+        "dark": {"visited": "#c46212", "dot": "#e3d04f"},
+        "light": {"visited": "#c46212", "dot": "#1f2328"},
     },
     "christmas": {
         # Coolors' most popular Christmas palette
         # https://coolors.co/palettes/popular/christmas
         # 386641, 6a994e, a7c957, f2e8cf, bc4749.
-        "dark": {"visited": "#bc4749", "tier": "#386641", "dot": "#f2e8cf"},
-        "light": {"visited": "#bc4749", "tier": "#6a994e", "dot": "#1f2328"},
+        # Visited shapes are red with green diagonal stripes, not a solid fill.
+        "dark": {"visited": "#bc4749", "stripe": "#6a994e", "dot": "#f2e8cf"},
+        "light": {"visited": "#bc4749", "stripe": "#6a994e", "dot": "#f2e8cf"},
     },
 }
+
+# Christmas stripes: 8px period at the output resolution, half of each period
+# in the stripe color. Supersampling keeps the edges even instead of hatched.
+STRIPE_PERIOD = 8
+STRIPE_FRACTION = 0.5
+STRIPE_SUPERSAMPLE = 4
 
 PALETTE_NAMES = ("default", "halloween", "christmas", "auto")
 
@@ -164,10 +176,14 @@ class TravelConfig:
 
 @dataclass(frozen=True)
 class ResolvedTravel:
-    """Places matched to Natural Earth ids. ``states`` is what gets painted."""
+    """Places matched to Natural Earth ids.
+
+    ``countries`` are filled in full. ``states`` are the only parts of a
+    country that get a color when the country itself is not listed. The rest
+    of that country stays the plain land color.
+    """
 
     countries: tuple[str, ...]
-    tier_countries: tuple[str, ...]
     states: tuple[str, ...]
     cities: tuple[City, ...]
     note: str | None = None
@@ -426,6 +442,8 @@ def read_admin0():
         "NAME_EN",
         "ADMIN",
         "NAME_ALT",
+        "CONTINENT",
+        "TYPE",
         "geometry",
     ]
     missing = [column for column in keep if column not in frame.columns]
@@ -501,18 +519,32 @@ def build_country_index(frame) -> tuple[dict[str, str | None], tuple[str, ...]]:
 
 
 def build_state_index(frame) -> tuple[dict[str, str | None], tuple[str, ...]]:
+    """Index state names. The Natural Earth ``name`` wins over a colliding ``name_en``.
+
+    The District of Columbia's English name is ``Washington``, which would
+    otherwise hide Washington state.
+    """
     index: dict[str, str | None] = {}
     displays: set[str] = set()
-    for row in frame.itertuples(index=False):
+    rows = list(frame.itertuples(index=False))
+    for row in rows:
         canonical = str(row.name).strip()
         _add_label(index, canonical, canonical)
         displays.add(canonical)
-        for field in ("name_en", "name_alt", "postal", "iso_3166_2"):
+    for row in rows:
+        canonical = str(row.name).strip()
+        if hasattr(row, "name_en"):
+            _add_if_free(index, row.name_en, canonical)
+        alt = _text(getattr(row, "name_alt", None))
+        if alt:
+            for part in alt.split("|"):
+                _add_if_free(index, part, canonical)
+        for field in ("postal", "iso_3166_2"):
             if hasattr(row, field):
-                _add_label(index, getattr(row, field), canonical)
+                _add_if_free(index, getattr(row, field), canonical)
     for alias, canonical in STATE_ALIASES.items():
         if canonical in displays:
-            _add_label(index, alias, canonical)
+            _add_if_free(index, alias, canonical)
     return index, tuple(sorted(displays))
 
 
@@ -902,19 +934,16 @@ def resolve_travel(config: TravelConfig, world: World | None = None) -> Resolved
 
     note = None
     painted_states: tuple[str, ...] = tuple(states)
-    tier: list[str] = []
-    if states:
-        if "USA" in countries:
-            painted_states = ()
-            note = (
-                "USA is listed under countries, so the whole country is filled "
-                "and us_states are not drawn separately."
-            )
-        else:
-            tier.append("USA")
+    # A country listed whole is filled entirely. Its subdivisions are not
+    # drawn on top, so a partial list cannot tint the rest of the country.
+    if states and "USA" in countries:
+        painted_states = ()
+        note = (
+            "USA is listed under countries, so the whole country is filled "
+            "and us_states are not drawn separately."
+        )
     return ResolvedTravel(
         countries=tuple(countries),
-        tier_countries=tuple(tier),
         states=painted_states,
         cities=config.cities,
         note=note,
@@ -923,13 +952,96 @@ def resolve_travel(config: TravelConfig, world: World | None = None) -> Resolved
 
 # Drawing ------------------------------------------------------------------
 
-def _paint(ax, frame, column: str, keys: tuple[str, ...], color: str, edge: str, width: float, zorder: int) -> None:
+def _subset(frame, column: str, keys: tuple[str, ...]):
     if not keys:
+        return frame.iloc[0:0]
+    return frame[frame[column].isin(keys)]
+
+
+def _paint(ax, frame, *, face: str | None, edge: str, width: float, zorder: int) -> None:
+    if frame.empty:
         return
-    part = frame[frame[column].isin(keys)]
-    if part.empty:
+    if face is None:
+        frame.plot(ax=ax, facecolor="none", edgecolor=edge, linewidth=width, zorder=zorder)
+    else:
+        frame.plot(ax=ax, color=face, edgecolor=edge, linewidth=width, zorder=zorder)
+
+
+def _polygons(geom):
+    """Yield polygon parts, including pieces inside a collection."""
+    if geom is None or geom.is_empty:
         return
-    part.plot(ax=ax, color=color, edgecolor=edge, linewidth=width, zorder=zorder)
+    kind = geom.geom_type
+    if kind == "Polygon":
+        yield geom
+    elif kind in {"MultiPolygon", "GeometryCollection"}:
+        for part in geom.geoms:
+            yield from _polygons(part)
+
+
+def _stripe_mask(width: int, height: int) -> np.ndarray:
+    """Even 45-degree bands, one value per output pixel, antialiased by supersampling."""
+    step = STRIPE_SUPERSAMPLE
+    period = STRIPE_PERIOD
+    fraction = STRIPE_FRACTION
+    y_coords, x_coords = np.mgrid[0 : height * step, 0 : width * step]
+    y_coords = y_coords / step
+    x_coords = x_coords / step
+    # '/' bands. y grows downward, matching an image whose origin is the top.
+    band = ((x_coords + y_coords) % period) < (period * fraction)
+    folded = band.astype(np.float32).reshape(height, step, width, step)
+    return folded.mean(axis=(1, 3))
+
+
+def _clip_path(geometries) -> MplPath | None:
+    vertices: list[tuple[float, float]] = []
+    codes: list[int] = []
+    for geom in geometries:
+        for polygon in _polygons(geom):
+            rings = [polygon.exterior, *polygon.interiors]
+            for ring in rings:
+                coords = [(float(x), float(y)) for x, y in ring.coords]
+                if len(coords) < 4:
+                    continue
+                vertices.extend(coords)
+                codes.append(MplPath.MOVETO)
+                codes.extend([MplPath.LINETO] * (len(coords) - 2))
+                codes.append(MplPath.CLOSEPOLY)
+    if not vertices:
+        return None
+    return MplPath(vertices, codes)
+
+
+def paint_stripes(ax, geometries, color: str) -> None:
+    """Clip a pixel-aligned stripe image to ``geometries``.
+
+    The period is ``STRIPE_PERIOD`` output pixels, so the bands stay even.
+    Matplotlib's hatch is not used; it does not land on the pixel grid.
+    """
+    figure = ax.figure
+    width = int(round(figure.get_figwidth() * figure.get_dpi()))
+    height = int(round(figure.get_figheight() * figure.get_dpi()))
+    if width <= 0 or height <= 0:
+        raise TravelError("the map figure has no pixel size, so stripes cannot be aligned.")
+    clip = _clip_path(geometries)
+    if clip is None:
+        return
+    mask = _stripe_mask(width, height)
+    image = np.zeros((height, width, 4), dtype=np.float32)
+    image[..., :3] = to_rgb(color)
+    image[..., 3] = mask
+    patch = PathPatch(clip, transform=ax.transData, facecolor="none", edgecolor="none", linewidth=0)
+    ax.add_patch(patch)
+    artist = ax.imshow(
+        image,
+        extent=(0, 1, 0, 1),
+        transform=ax.transAxes,
+        interpolation="nearest",
+        aspect="auto",
+        origin="upper",
+        zorder=3,
+    )
+    artist.set_clip_path(patch)
 
 
 def draw_map(ax, world: World, resolved: ResolvedTravel, theme: str, palette: str) -> None:
@@ -942,10 +1054,26 @@ def draw_map(ax, world: World, resolved: ResolvedTravel, theme: str, palette: st
     ink = PALETTES[palette][theme]
     ax.set_facecolor(chrome["background"])
     countries = world.countries
-    _paint(ax, countries, "adm0_a3", tuple(countries["adm0_a3"]), chrome["land"], chrome["edge"], 0.3, 1)
-    _paint(ax, countries, "adm0_a3", resolved.tier_countries, ink["tier"], chrome["edge"], 0.3, 2)
-    _paint(ax, world.states, "name", resolved.states, ink["visited"], chrome["edge"], 0.18, 3)
-    _paint(ax, countries, "adm0_a3", resolved.countries, ink["visited"], chrome["edge"], 0.3, 4)
+    _paint(
+        ax,
+        countries,
+        face=chrome["land"],
+        edge=chrome["edge"],
+        width=0.3,
+        zorder=1,
+    )
+    state_frame = _subset(world.states, "name", resolved.states)
+    country_frame = _subset(countries, "adm0_a3", resolved.countries)
+    stripe = ink.get("stripe")
+    if stripe is None:
+        _paint(ax, state_frame, face=ink["visited"], edge=chrome["edge"], width=0.18, zorder=2)
+        _paint(ax, country_frame, face=ink["visited"], edge=chrome["edge"], width=0.3, zorder=2)
+    else:
+        _paint(ax, state_frame, face=ink["visited"], edge="none", width=0, zorder=2)
+        _paint(ax, country_frame, face=ink["visited"], edge="none", width=0, zorder=2)
+        paint_stripes(ax, list(state_frame.geometry) + list(country_frame.geometry), stripe)
+        _paint(ax, state_frame, face=None, edge=chrome["edge"], width=0.18, zorder=4)
+        _paint(ax, country_frame, face=None, edge=chrome["edge"], width=0.3, zorder=4)
     if resolved.cities:
         xs = [city.lon + 360.0 if city.lon < SEAM else city.lon for city in resolved.cities]
         ys = [city.lat for city in resolved.cities]

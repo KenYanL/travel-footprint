@@ -89,8 +89,13 @@ def test_state_name_and_postal_code_match(world) -> None:
     config = parse_config("us_states:\n  - Wyoming\n  - CO\n")
     resolved = resolve_travel(config, world)
     assert resolved.states == ("Wyoming", "Colorado")
-    assert resolved.tier_countries == ("USA",)
     assert resolved.countries == ()
+
+
+def test_washington_state_is_not_hidden_by_the_district(world) -> None:
+    config = parse_config("us_states:\n  - Washington\n  - DC\n")
+    resolved = resolve_travel(config, world)
+    assert resolved.states == ("Washington", "District of Columbia")
 
 
 def test_state_listed_twice_is_rejected(world) -> None:
@@ -110,7 +115,6 @@ def test_listing_the_whole_country_covers_states(world) -> None:
     resolved = resolve_travel(config, world)
     assert resolved.countries == ("USA",)
     assert resolved.states == ()
-    assert resolved.tier_countries == ()
     assert resolved.note is not None
     assert "us_states" in resolved.note
 
@@ -155,7 +159,7 @@ def _count_near(path: Path, hex_color: str, tolerance: int = 36) -> int:
     return hits
 
 
-def test_smoke_render_paints_a_country_and_the_us_tier(world, tmp_path: Path) -> None:
+def test_smoke_render_paints_a_country_and_one_state(world, tmp_path: Path) -> None:
     text = (
         "countries:\n  - BR\n"
         "us_states:\n  - WY\n"
@@ -174,7 +178,7 @@ def test_smoke_render_paints_a_country_and_the_us_tier(world, tmp_path: Path) ->
     assert _count_near(result.dark_path, "#0d1117") > 50_000
     assert _count_near(result.light_path, "#ffffff") > 50_000
     assert _count_near(result.dark_path, "#3fb950") > 1_000
-    assert _count_near(result.dark_path, "#1f6f35") > 1_000
+    assert result.resolved.states == ("Wyoming",)
     assert result.palette == "default"
     assert result.resolved.cities == (City("Site A", -15.0, -47.0),)
 
@@ -187,8 +191,40 @@ def test_christmas_palette_changes_the_visited_color(world, tmp_path: Path) -> N
     festive = render_maps(config, festive_dir, "auto", date(2026, 12, 25), world=world)
     assert festive.palette == "christmas"
     assert plain.dark_path.read_bytes() != festive.dark_path.read_bytes()
-    assert _count_near(festive.dark_path, "#bc4749") > 1_000
+    red = _count_near(festive.dark_path, "#bc4749")
+    green = _count_near(festive.dark_path, "#6a994e")
+    assert red > 400
+    assert green > 400
+    # The bands split the visited shape about evenly.
+    assert 0.25 < green / (red + green) < 0.75
     assert _count_near(festive.dark_path, "#3fb950") < 50
+    assert _count_near(festive.light_path, "#ffffff") > 50_000
+    assert _count_near(festive.light_path, "#bc4749") > 400
+    assert _count_near(festive.light_path, "#6a994e") > 400
+    assert _count_near(plain.dark_path, "#6a994e") < 40
+
+
+def test_us_states_do_not_fill_the_whole_country(world, tmp_path: Path) -> None:
+    partial = render_maps(
+        parse_config("us_states:\n  - WY\n"),
+        tmp_path / "partial",
+        "default",
+        date(2026, 6, 1),
+        world=world,
+    )
+    whole = render_maps(
+        parse_config("countries:\n  - US\n"),
+        tmp_path / "whole",
+        "default",
+        date(2026, 6, 1),
+        world=world,
+    )
+    state_green = _count_near(partial.dark_path, "#3fb950")
+    country_green = _count_near(whole.dark_path, "#3fb950")
+    assert partial.resolved.states == ("Wyoming",)
+    assert partial.resolved.countries == ()
+    assert state_green > 30
+    assert country_green > state_green * 8
 
 
 def test_vendored_zips_match_checksums() -> None:

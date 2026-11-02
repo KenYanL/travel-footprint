@@ -53,35 +53,25 @@ def test_auto_is_christmas_on_december_24_through_26() -> None:
 
 
 def test_dark_palette_values_match_the_contract() -> None:
-    assert PALETTES["default"]["dark"] == {
-        "visited": "#3fb950",
-        "tier": "#1f6f35",
-        "dot": "#ffffff",
-    }
-    assert PALETTES["halloween"]["dark"] == {
-        "visited": "#c46212",
-        "tier": "#984b10",
-        "dot": "#e3d04f",
-    }
+    assert PALETTES["default"]["dark"] == {"visited": "#3fb950", "dot": "#ffffff"}
+    assert PALETTES["halloween"]["dark"] == {"visited": "#c46212", "dot": "#e3d04f"}
     assert PALETTES["christmas"]["dark"] == {
         "visited": "#bc4749",
-        "tier": "#386641",
+        "stripe": "#6a994e",
         "dot": "#f2e8cf",
     }
+    assert "stripe" not in PALETTES["default"]["dark"]
+    assert "stripe" not in PALETTES["halloween"]["dark"]
 
 
 def test_light_palette_values_are_the_documented_equivalents() -> None:
-    assert PALETTES["default"]["light"] == {
-        "visited": "#1a7f37",
-        "tier": "#4ac26b",
-        "dot": "#1f2328",
+    assert PALETTES["default"]["light"] == {"visited": "#1a7f37", "dot": "#1f2328"}
+    assert PALETTES["halloween"]["light"] == {"visited": "#c46212", "dot": "#1f2328"}
+    assert PALETTES["christmas"]["light"] == {
+        "visited": "#bc4749",
+        "stripe": "#6a994e",
+        "dot": "#f2e8cf",
     }
-    assert PALETTES["halloween"]["light"]["visited"] == "#c46212"
-    assert PALETTES["halloween"]["light"]["tier"] == "#f68c41"
-    assert PALETTES["halloween"]["light"]["dot"] == "#1f2328"
-    assert PALETTES["christmas"]["light"]["visited"] == "#bc4749"
-    assert PALETTES["christmas"]["light"]["tier"] == "#6a994e"
-    assert PALETTES["christmas"]["light"]["dot"] == "#1f2328"
 
 
 def test_chrome_colors() -> None:

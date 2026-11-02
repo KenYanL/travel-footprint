@@ -10,7 +10,7 @@ A Pacific-centred world map of countries, US states, and cities, drawn for a pro
 
 *Reusable GitHub Action and Python CLI. One dark PNG, one light PNG, from a YAML file you keep in the repo.*
 
-The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: random countries, random US states, and a random city coordinate inside each shape. It is not a real itinerary. The same command also writes `demo/travel-map-christmas.png`.
+The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, and city dots inside those shapes. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The same command also writes `demo/travel-map-christmas.png`.
 
 ![Same fictional demo with the Christmas palette](demo/travel-map-christmas.png)
 
@@ -113,29 +113,29 @@ cities:
 | Key | What it draws |
 | --- | --- |
 | `countries` | The whole country in the visited color. ISO 3166-1 alpha-2, alpha-3, or an English name (`NZ`, `NZL`, `New Zealand`). `UK` and `US` are accepted. |
-| `us_states` | Those states in the visited color, and the rest of the United States in the lighter tier. A name or USPS code (`Wyoming`, `WY`). The District of Columbia is accepted. Other subdivisions are not supported yet. |
+| `us_states` | Only those states, in the visited color. The rest of the United States stays plain land. A name or USPS code (`Wyoming`, `WY`). The District of Columbia is accepted. Other subdivisions are not supported yet. |
 | `cities` | A dot at `lat`/`lon` (or `latitude`/`longitude`). Longitude is −180 to 180, latitude −90 to 90. |
 
-Listing `USA` under `countries` fills the whole country, and `us_states` is not drawn on top of it. A repeated country, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean.
+Listing `USA` under `countries` fills the whole country, and `us_states` is not drawn on top of it. Listing states alone does not tint Alaska, the other states, or any other unlisted part of the country. A repeated country, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean.
 
 ## Palettes
 
-The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border in the canvas color. The light map uses white, land `#d0d7de`, and the same layout. City dots on the light map are `#1f2328` so they stay visible.
+The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border in the canvas color. The light map uses white, land `#d0d7de`, and the same layout. Default and Halloween city dots on the light map are `#1f2328` so they stay visible. Christmas dots stay `#f2e8cf` on both themes; they sit on the red and green bands.
 
-| Palette | Theme | Visited | Lighter tier | Dots |
-| --- | --- | --- | --- | --- |
-| `default` | dark | `#3fb950` | `#1f6f35` | `#ffffff` |
-| `default` | light | `#1a7f37` | `#4ac26b` | `#1f2328` |
-| `halloween` | dark | `#c46212` | `#984b10` | `#e3d04f` |
-| `halloween` | light | `#c46212` | `#f68c41` | `#1f2328` |
-| `christmas` | dark | `#bc4749` | `#386641` | `#f2e8cf` |
-| `christmas` | light | `#bc4749` | `#6a994e` | `#1f2328` |
+| Palette | Theme | Visited | Dots |
+| --- | --- | --- | --- |
+| `default` | dark | `#3fb950`, solid | `#ffffff` |
+| `default` | light | `#1a7f37`, solid | `#1f2328` |
+| `halloween` | dark | `#c46212`, solid | `#e3d04f` |
+| `halloween` | light | `#c46212`, solid | `#1f2328` |
+| `christmas` | dark | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
+| `christmas` | light | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 
-Halloween dark colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). The light orange tier `#f68c41` is the matching Primer light token. Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`).
+Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the PNG's resolution, half red and half green, clipped to the visited shapes. Default and Halloween stay solid fills.
 
 ## How it is drawn
 
-Natural Earth 1:50m, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted land, then the lighter tier, then highlighted states, then fully visited countries, then city dots with a soft halo. Each PNG is 1200×474.
+Natural Earth 1:50m, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state is filled on its own; the rest of that country is left as land. Christmas then lays pixel-aligned diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Each PNG is 1200×474.
 
 The coastlines are the unmodified Natural Earth zips in [`data/`](data/README.md), public domain, checked against `data/SHA256SUMS`. If a zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing.
 

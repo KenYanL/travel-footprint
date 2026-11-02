@@ -5,10 +5,10 @@ countries:
   - NZ
   - CL
 
-# US states accept a name or a USPS code. The United States is drawn in the
-# lighter tier and these states in the visited color. Listing USA under
-# countries fills the whole country instead. Other subdivisions are not
-# supported yet.
+# US states accept a name or a USPS code. Only these states are filled.
+# The rest of the United States stays the plain land color. Listing USA
+# under countries fills the whole country instead. Other subdivisions are
+# not supported yet.
 us_states:
   - CO
   - ME

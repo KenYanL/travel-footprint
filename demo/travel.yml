@@ -1,49 +1,197 @@
 # Fictional demo places. scripts/make_demo.py rebuilds this file from seed 20261102.
 # These are not a real itinerary.
 countries:
-  - BWA
+  - ARG
+  - AUS
+  - BEN
+  - BOL
+  - CAF
+  - CAN
   - COD
-  - ECU
-  - MYS
+  - EGY
+  - FIN
+  - GAB
+  - GRL
+  - GTM
+  - IRL
+  - JPN
+  - LTU
+  - LVA
+  - MEX
+  - MNG
+  - NER
+  - NPL
   - NZL
-  - TZA
+  - PAK
+  - PER
+  - PNG
+  - PRT
+  - SRB
+  - SUR
+  - THA
+  - TJK
+  - URY
+  - UZB
+  - ZMB
 us_states:
-  - Arizona
-  - Idaho
-  - "South Dakota"
-  - "West Virginia"
-  - Wisconsin
+  - Delaware
+  - Indiana
+  - Nebraska
+  - "New York"
+  - Pennsylvania
+  - "South Carolina"
+  - Tennessee
+  - Texas
+  - Virginia
+  - Washington
 cities:
   - name: "Site 01"
-    lat: -20.4753
-    lon: 25.5952
+    lat: -40.5333
+    lon: -63.1903
   - name: "Site 02"
-    lat: 1.5376
-    lon: 19.9802
+    lat: -27.7569
+    lon: -66.7508
   - name: "Site 03"
-    lat: -1.4935
-    lon: -78.9777
+    lat: -32.5188
+    lon: 136.0481
   - name: "Site 04"
-    lat: 5.0453
-    lon: 102.0857
+    lat: -17.3867
+    lon: 140.9146
   - name: "Site 05"
+    lat: 10.4139
+    lon: 1.9059
+  - name: "Site 06"
+    lat: -13.2550
+    lon: -66.0659
+  - name: "Site 07"
+    lat: 6.3743
+    lon: 21.2958
+  - name: "Site 08"
+    lat: 60.7181
+    lon: -98.1990
+  - name: "Site 09"
+    lat: 52.5463
+    lon: -96.3115
+  - name: "Site 10"
+    lat: 1.9938
+    lon: 22.9774
+  - name: "Site 11"
+    lat: 0.1963
+    lon: 27.7112
+  - name: "Site 12"
+    lat: 25.2489
+    lon: 27.0887
+  - name: "Site 13"
+    lat: 61.0909
+    lon: 27.8511
+  - name: "Site 14"
+    lat: 0.9313
+    lon: 13.7716
+  - name: "Site 15"
+    lat: 79.0430
+    lon: -22.4658
+  - name: "Site 16"
+    lat: 75.2141
+    lon: -37.3155
+  - name: "Site 17"
+    lat: 15.8292
+    lon: -91.1584
+  - name: "Site 18"
+    lat: 53.4171
+    lon: -7.5885
+  - name: "Site 19"
+    lat: 35.2602
+    lon: 132.6303
+  - name: "Site 20"
+    lat: 55.6297
+    lon: 22.5188
+  - name: "Site 21"
+    lat: 56.3910
+    lon: 27.3339
+  - name: "Site 22"
+    lat: 29.5604
+    lon: -114.9486
+  - name: "Site 23"
+    lat: 30.0287
+    lon: -107.5942
+  - name: "Site 24"
+    lat: 44.9930
+    lon: 110.2564
+  - name: "Site 25"
+    lat: 47.4492
+    lon: 114.0615
+  - name: "Site 26"
+    lat: 17.7328
+    lon: 12.7288
+  - name: "Site 27"
+    lat: 27.6723
+    lon: 86.8364
+  - name: "Site 28"
     lat: -38.0081
     lon: 176.6102
-  - name: "Site 06"
-    lat: -10.0199
-    lon: 35.6630
-  - name: "Site 07"
-    lat: 33.1546
-    lon: -110.6545
-  - name: "Site 08"
-    lat: 46.9463
-    lon: -116.4675
-  - name: "Site 09"
-    lat: 44.2001
-    lon: -103.8623
-  - name: "Site 10"
-    lat: 38.6003
-    lon: -80.4916
-  - name: "Site 11"
-    lat: 44.5105
-    lon: -91.3740
+  - name: "Site 29"
+    lat: 28.4378
+    lon: 68.1360
+  - name: "Site 30"
+    lat: -5.3392
+    lon: -77.7145
+  - name: "Site 31"
+    lat: -11.0347
+    lon: -74.1357
+  - name: "Site 32"
+    lat: -4.6343
+    lon: 151.7584
+  - name: "Site 33"
+    lat: 39.3604
+    lon: -8.8215
+  - name: "Site 34"
+    lat: 44.5007
+    lon: 22.1991
+  - name: "Site 35"
+    lat: 4.7691
+    lon: -56.4028
+  - name: "Site 36"
+    lat: 16.2270
+    lon: 100.1276
+  - name: "Site 37"
+    lat: 39.5192
+    lon: 71.2978
+  - name: "Site 38"
+    lat: -32.4887
+    lon: -55.0732
+  - name: "Site 39"
+    lat: 42.3361
+    lon: 56.8333
+  - name: "Site 40"
+    lat: -13.6801
+    lon: 29.6946
+  - name: "Site 41"
+    lat: 39.0986
+    lon: -75.7387
+  - name: "Site 42"
+    lat: 41.5943
+    lon: -86.0113
+  - name: "Site 43"
+    lat: 42.9113
+    lon: -103.9657
+  - name: "Site 44"
+    lat: 42.3204
+    lon: -74.7253
+  - name: "Site 45"
+    lat: 40.9382
+    lon: -78.4432
+  - name: "Site 46"
+    lat: 34.6752
+    lon: -79.7217
+  - name: "Site 47"
+    lat: 36.2749
+    lon: -83.4045
+  - name: "Site 48"
+    lat: 31.8936
+    lon: -103.9965
+  - name: "Site 49"
+    lat: 36.8595
+    lon: -80.1984
+  - name: "Site 50"
+    lat: 47.8318
+    lon: -120.1260
