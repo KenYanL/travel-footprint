@@ -1,0 +1,4 @@
+geopandas==1.1.1
+matplotlib==3.10.7
+PyYAML==6.0.3
+shapely==2.2.0

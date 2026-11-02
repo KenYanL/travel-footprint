@@ -1,0 +1,80 @@
+name: Travel Footprint
+description: >-
+  Render a Pacific-centred world map of visited countries, US states, and
+  cities. Writes one dark PNG and one light PNG.
+author: KenYanL
+
+branding:
+  icon: map
+  color: green
+
+inputs:
+  config:
+    description: >-
+      Workspace path of the YAML file listing countries, us_states, and
+      cities. ISO codes or English names for countries, state names or USPS
+      codes, and city name plus lat/lon.
+    required: false
+    default: travel.yml
+  output:
+    description: >-
+      Directory for travel-map.png (dark) and travel-map-light.png (light).
+      Use dist when a later step publishes that directory.
+    required: false
+    default: dist
+  palette:
+    description: >-
+      Map colors. default is green on the dark canvas. halloween uses orange
+      and yellow. christmas uses Coolors' popular Christmas palette. auto uses
+      halloween on 31 October (UTC), christmas on 24-26 December (UTC), and
+      default every other day. An empty value is rejected.
+    required: false
+    default: default
+
+outputs:
+  map_dark_path:
+    description: Path of the dark PNG that was written.
+    value: ${{ steps.render.outputs.map_dark_path }}
+  map_light_path:
+    description: Path of the light PNG that was written.
+    value: ${{ steps.render.outputs.map_light_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install travel-footprint dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
+          echo "travel-footprint needs Python 3.10 or newer (ubuntu-latest already has it)." >&2
+          exit 1
+        fi
+        venv="${RUNNER_TEMP:-/tmp}/travel-footprint-venv"
+        python3 -m venv "$venv"
+        "$venv/bin/python" -m pip install --disable-pip-version-check -r "${{ github.action_path }}/requirements.txt"
+        echo "TRAVEL_PYTHON=$venv/bin/python" >> "$GITHUB_ENV"
+
+    - name: Render travel map
+      id: render
+      shell: bash
+      env:
+        TRAVEL_CONFIG: ${{ inputs.config }}
+        TRAVEL_OUTPUT: ${{ inputs.output }}
+        TRAVEL_PALETTE: ${{ inputs.palette }}
+      run: |
+        set -euo pipefail
+        python="${TRAVEL_PYTHON:-python3}"
+        "$python" "${{ github.action_path }}/travel_footprint.py" \
+          --config "$TRAVEL_CONFIG" \
+          --out "$TRAVEL_OUTPUT" \
+          --palette "${TRAVEL_PALETTE-default}"
+        out="${TRAVEL_OUTPUT%/}"
+        {
+          echo "map_dark_path<<EOF"
+          echo "$out/travel-map.png"
+          echo "EOF"
+          echo "map_light_path<<EOF"
+          echo "$out/travel-map-light.png"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
