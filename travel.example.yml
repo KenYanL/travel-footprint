@@ -1,0 +1,22 @@
+# Copy to travel.yml and replace the sample places with your own.
+# Countries accept an ISO 3166-1 alpha-2 or alpha-3 code or an English name.
+countries:
+  - IS
+  - NZ
+  - CL
+
+# US states accept a name or a USPS code. The United States is drawn in the
+# lighter tier and these states in the visited color. Listing USA under
+# countries fills the whole country instead. Other subdivisions are not
+# supported yet.
+us_states:
+  - CO
+  - ME
+
+cities:
+  - name: Sample Harbor
+    lat: 64.1500
+    lon: -21.9500
+  - name: Sample Ridge
+    lat: -41.2900
+    lon: 174.7800

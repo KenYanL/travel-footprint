@@ -1,0 +1,49 @@
+# Fictional demo places. scripts/make_demo.py rebuilds this file from seed 20261102.
+# These are not a real itinerary.
+countries:
+  - BWA
+  - COD
+  - ECU
+  - MYS
+  - NZL
+  - TZA
+us_states:
+  - Arizona
+  - Idaho
+  - "South Dakota"
+  - "West Virginia"
+  - Wisconsin
+cities:
+  - name: "Site 01"
+    lat: -20.4753
+    lon: 25.5952
+  - name: "Site 02"
+    lat: 1.5376
+    lon: 19.9802
+  - name: "Site 03"
+    lat: -1.4935
+    lon: -78.9777
+  - name: "Site 04"
+    lat: 5.0453
+    lon: 102.0857
+  - name: "Site 05"
+    lat: -38.0081
+    lon: 176.6102
+  - name: "Site 06"
+    lat: -10.0199
+    lon: 35.6630
+  - name: "Site 07"
+    lat: 33.1546
+    lon: -110.6545
+  - name: "Site 08"
+    lat: 46.9463
+    lon: -116.4675
+  - name: "Site 09"
+    lat: 44.2001
+    lon: -103.8623
+  - name: "Site 10"
+    lat: 38.6003
+    lon: -80.4916
+  - name: "Site 11"
+    lat: 44.5105
+    lon: -91.3740
