@@ -3,14 +3,14 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="demo/travel-map.png" />
   <source media="(prefers-color-scheme: light)" srcset="demo/travel-map-light.png" />
-  <img alt="Demo world map of fictional visited countries, US states, and cities" src="demo/travel-map-light.png" />
+  <img alt="Demo world map of fictional visited countries, US states, Chinese provinces, Japanese prefectures, and cities" src="demo/travel-map-light.png" />
 </picture>
 
-A Pacific-centred world map of countries, US states, and cities, drawn for a profile README.
+A Pacific-centred world map of countries, US states, Chinese provinces, Japanese prefectures, and cities, drawn for a profile README.
 
 *Reusable GitHub Action and Python CLI. One dark PNG, one light PNG, from a YAML file you keep in the repo.*
 
-The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, and city dots inside those shapes. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The same command also writes `demo/travel-map-christmas.png`.
+The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-map-christmas.png`.
 
 ![Same fictional demo with the Christmas palette](demo/travel-map-christmas.png)
 
@@ -75,7 +75,7 @@ The map files land at the root of `output` as `travel-map.png` (dark) and `trave
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `config` | no | `travel.yml` | YAML file of countries, US states, and cities. |
+| `config` | no | `travel.yml` | YAML file of countries, US states, Chinese provinces, Japanese prefectures, and cities. |
 | `output` | no | `dist` | Directory for the two PNGs. |
 | `palette` | no | `default` | `default`, `halloween`, `christmas`, or `auto`. |
 
@@ -94,7 +94,7 @@ The action installs its Python dependencies into a virtualenv on the runner, the
 
 ## Config
 
-`travel.yml` is a mapping with three keys. Leave a key out, or use an empty list, when you have nothing to draw for it.
+`travel.yml` is a mapping with five keys. Leave a key out, or use an empty list, when you have nothing to draw for it.
 
 ```yaml
 countries:
@@ -104,6 +104,12 @@ countries:
 us_states:
   - Colorado
   - ME
+china_provinces:
+  - Zhejiang
+  - Sichuan
+japan_prefectures:
+  - Kyoto
+  - Hokkaido
 cities:
   - name: Sample Harbor
     lat: 64.15
@@ -113,10 +119,12 @@ cities:
 | Key | What it draws |
 | --- | --- |
 | `countries` | The whole country in the visited color. ISO 3166-1 alpha-2, alpha-3, or an English name (`NZ`, `NZL`, `New Zealand`). `UK` and `US` are accepted. |
-| `us_states` | Only those states, in the visited color. The rest of the United States stays plain land. A name or USPS code (`Wyoming`, `WY`). The District of Columbia is accepted. Other subdivisions are not supported yet. |
+| `us_states` | Only those states, in the visited color. The rest of the United States stays plain land. A name or USPS code (`Wyoming`, `WY`). The District of Columbia is accepted. |
+| `china_provinces` | Only those units, in the visited color. The rest of China stays plain land. A province, autonomous region, or municipality name, or an ISO 3166-2 code (`Zhejiang`, `CN-ZJ`, `Beijing`, `Inner Mongolia`). |
+| `japan_prefectures` | Only those prefectures, in the visited color. The rest of Japan stays plain land. A name or an ISO 3166-2 code (`Kyoto`, `JP-26`, `Tokyo`, `Hokkaido`). Hokkaido, Tokyo, Kyoto, and Osaka are included. |
 | `cities` | A dot at `lat`/`lon` (or `latitude`/`longitude`). Longitude is −180 to 180, latitude −90 to 90. |
 
-Listing `USA` under `countries` fills the whole country, and `us_states` is not drawn on top of it. Listing states alone does not tint Alaska, the other states, or any other unlisted part of the country. A repeated country, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean.
+Listing `USA`, `China`, or `Japan` under `countries` fills that whole country, and the matching subdivision list is not drawn on top of it. Listing states, provinces, or prefectures alone does not tint the rest of that country. A repeated place, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry and, when a name is close, suggests it. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean. Other countries' subdivisions are not supported yet.
 
 ## Palettes
 
@@ -131,13 +139,13 @@ The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border
 | `christmas` | dark | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 | `christmas` | light | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 
-Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the PNG's resolution, half red and half green, clipped to the visited shapes. Default and Halloween stay solid fills.
+Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the PNG's resolution, half red and half green, clipped to the visited shapes. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick.
 
 ## How it is drawn
 
-Natural Earth 1:50m, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state is filled on its own; the rest of that country is left as land. Christmas then lays pixel-aligned diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Each PNG is 1200×474.
+Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays pixel-aligned diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Each PNG is 1200×474.
 
-The coastlines are the unmodified Natural Earth zips in [`data/`](data/README.md), public domain, checked against `data/SHA256SUMS`. If a zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing.
+Countries and the 1:50m admin-1 file (US states and Chinese provinces) are the unmodified Natural Earth zips in [`data/`](data/README.md), public domain, checked against `data/SHA256SUMS`. Japanese prefectures are a public-domain extract of Natural Earth 1:10m admin-1, because the 1:50m admin-1 theme does not include Japan. If a 1:50m zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing. The Japan extract ships with the repository.
 
 ## Develop
 
@@ -159,4 +167,4 @@ python3 scripts/make_demo.py
 
 [MIT](LICENSE).
 
-Map data is public domain [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), version 5.1.1. See [`data/README.md`](data/README.md).
+Map data is public domain [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), version 5.1.1, including the Japan prefecture extract. See [`data/README.md`](data/README.md).

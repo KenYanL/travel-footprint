@@ -14,7 +14,6 @@ countries:
   - GRL
   - GTM
   - IRL
-  - JPN
   - LTU
   - LVA
   - MEX
@@ -22,6 +21,7 @@ countries:
   - NER
   - NPL
   - NZL
+  - OMN
   - PAK
   - PER
   - PNG
@@ -44,6 +44,16 @@ us_states:
   - Texas
   - Virginia
   - Washington
+china_provinces:
+  - Gansu
+  - Guizhou
+  - Shaanxi
+  - Sichuan
+japan_prefectures:
+  - Akita
+  - Fukushima
+  - "Hokkaidō"
+  - Shimane
 cities:
   - name: "Site 01"
     lat: -40.5333
@@ -195,3 +205,6 @@ cities:
   - name: "Site 50"
     lat: 47.8318
     lon: -120.1260
+  - name: "Site 51"
+    lat: 18.1091
+    lon: 54.0585
