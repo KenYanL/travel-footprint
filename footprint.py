@@ -1,9 +1,9 @@
 """Load a travel file and draw a Pacific-centred world map.
 
-Countries, US states, and cities come from the caller's YAML file. Coastlines
-come from the Natural Earth extracts under ``data/`` (see ``data/README.md``).
-The map is plate carrée, seam at 30°W, so the Pacific sits in the middle and
-the Americas sit on the right.
+Countries, US states, Chinese provinces, Japanese prefectures, and cities come
+from the caller's YAML file. Coastlines come from the Natural Earth extracts
+under ``data/`` (see ``data/README.md``). The map is plate carrée, seam at
+30°W, so the Pacific sits in the middle and the Americas sit on the right.
 """
 
 from __future__ import annotations
@@ -40,7 +40,10 @@ VENDOR_DIR = ROOT / "data"
 
 COUNTRIES_ZIP = "ne_50m_admin_0_countries.zip"
 STATES_ZIP = "ne_50m_admin_1_states_provinces.zip"
-DATASET_NAMES = (COUNTRIES_ZIP, STATES_ZIP)
+# Natural Earth 50m admin-1 has China and the United States, and not Japan.
+# Prefectures are a Japan-only extract of the public-domain 10m admin-1 theme.
+JAPAN_ZIP = "ne_10m_admin_1_japan_prefectures.zip"
+DATASET_NAMES = (COUNTRIES_ZIP, STATES_ZIP, JAPAN_ZIP)
 DATASET_URLS = {
     COUNTRIES_ZIP: "https://naciscdn.org/naturalearth/50m/cultural/ne_50m_admin_0_countries.zip",
     STATES_ZIP: "https://naciscdn.org/naturalearth/50m/cultural/ne_50m_admin_1_states_provinces.zip",
@@ -167,6 +170,8 @@ class TravelConfig:
     countries: tuple[str, ...]
     us_states: tuple[str, ...]
     cities: tuple[City, ...]
+    china_provinces: tuple[str, ...] = ()
+    japan_prefectures: tuple[str, ...] = ()
     path: str | None = None
 
     @property
@@ -178,14 +183,17 @@ class TravelConfig:
 class ResolvedTravel:
     """Places matched to Natural Earth ids.
 
-    ``countries`` are filled in full. ``states`` are the only parts of a
-    country that get a color when the country itself is not listed. The rest
-    of that country stays the plain land color.
+    ``countries`` are filled in full. ``states``, ``provinces``, and
+    ``prefectures`` are the only parts of a country that get a color when
+    that country itself is not listed. The rest of that country stays the
+    plain land color.
     """
 
     countries: tuple[str, ...]
     states: tuple[str, ...]
     cities: tuple[City, ...]
+    provinces: tuple[str, ...] = ()
+    prefectures: tuple[str, ...] = ()
     note: str | None = None
 
 
@@ -193,10 +201,16 @@ class ResolvedTravel:
 class World:
     countries: object
     states: object
+    provinces: object
+    prefectures: object
     country_index: dict[str, str | None]
     state_index: dict[str, str | None]
+    province_index: dict[str, str | None]
+    prefecture_index: dict[str, str | None]
     country_names: tuple[str, ...]
     state_names: tuple[str, ...]
+    province_names: tuple[str, ...]
+    prefecture_names: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -344,7 +358,7 @@ def locate_dataset(
     ``fetch`` is called only when both locations lack a usable file. A second
     call with the same cache hits the file written by the first.
     """
-    if name not in DATASET_URLS:
+    if name not in DATASET_NAMES:
         raise DataError(f"unknown map dataset {name!r}.")
     vendor_root = VENDOR_DIR if vendor_dir is None else vendor_dir
     vendored = vendor_root / name
@@ -352,8 +366,14 @@ def locate_dataset(
     cached = cached_root / name
     path = vendored if vendored.is_file() else cached
     if not path.is_file():
+        url = DATASET_URLS.get(name)
+        if url is None:
+            raise DataError(
+                f"{name} is missing from {vendor_root}. "
+                "This file ships in data/ and is not downloaded automatically."
+            )
         cached_root.mkdir(parents=True, exist_ok=True)
-        fetch(DATASET_URLS[name], cached)
+        fetch(url, cached)
         path = cached
         if not path.is_file() or path.stat().st_size == 0:
             raise DataError(f"download of {name} did not produce a file at {path}.")
@@ -461,28 +481,52 @@ def read_admin0():
     return frame
 
 
-@lru_cache(maxsize=1)
-def read_admin1_usa():
-    """Unprojected US states and the District of Columbia."""
-    frame = _open_zip(STATES_ZIP)
+def _read_admin1(dataset: str, adm0: str, types: tuple[str, ...]):
+    """One country's first-level units from a Natural Earth admin-1 extract."""
+    frame = _open_zip(dataset)
     needed = ["adm0_a3", "name", "postal", "iso_3166_2", "type_en", "geometry"]
     missing = [column for column in needed if column not in frame.columns]
     if missing:
         raise DataError(
-            f"{STATES_ZIP} is missing {', '.join(missing)}. "
+            f"{dataset} is missing {', '.join(missing)}. "
             "travel-footprint expects the Natural Earth admin-1 fields."
         )
     columns = needed + [column for column in ("name_en", "name_alt") if column in frame.columns]
     frame = frame.loc[:, columns].copy()
-    frame = frame[frame["adm0_a3"].map(_text) == "USA"]
-    if "type_en" in frame.columns:
-        frame = frame[frame["type_en"].isin(["State", "Federal District"])]
+    frame = frame[frame["adm0_a3"].map(_text) == adm0]
+    frame = frame[frame["type_en"].isin(types)]
     geometry = frame.geometry
     frame = frame[geometry.notna() & ~geometry.is_empty].copy()
     frame["name"] = frame["name"].map(lambda value: str(value).strip())
     if frame.empty:
-        raise DataError(f"{STATES_ZIP} has no US states to highlight.")
+        raise DataError(f"{dataset} has no {adm0} subdivisions to highlight.")
     return frame
+
+
+@lru_cache(maxsize=1)
+def read_admin1_usa():
+    """Unprojected US states and the District of Columbia."""
+    return _read_admin1(STATES_ZIP, "USA", ("State", "Federal District"))
+
+
+@lru_cache(maxsize=1)
+def read_admin1_china():
+    """Unprojected Chinese provinces, autonomous regions, and municipalities."""
+    return _read_admin1(
+        STATES_ZIP,
+        "CHN",
+        ("Province", "Autonomous Region", "Municipality"),
+    )
+
+
+@lru_cache(maxsize=1)
+def read_admin1_japan():
+    """Unprojected Japanese prefectures, including Tokyo, Kyoto, Osaka, and Hokkaido."""
+    return _read_admin1(
+        JAPAN_ZIP,
+        "JPN",
+        ("Prefecture", "Urban Prefecture", "Metropolis", "Circuit"),
+    )
 
 
 def build_country_index(frame) -> tuple[dict[str, str | None], tuple[str, ...]]:
@@ -518,12 +562,18 @@ def build_country_index(frame) -> tuple[dict[str, str | None], tuple[str, ...]]:
     return index, tuple(sorted(displays))
 
 
-def build_state_index(frame) -> tuple[dict[str, str | None], tuple[str, ...]]:
-    """Index state names. The Natural Earth ``name`` wins over a colliding ``name_en``.
+def build_state_index(
+    frame,
+    aliases: dict[str, str] | None = None,
+) -> tuple[dict[str, str | None], tuple[str, ...]]:
+    """Index subdivision names. The Natural Earth ``name`` wins over a colliding label.
 
     The District of Columbia's English name is ``Washington``, which would
-    otherwise hide Washington state.
+    otherwise hide Washington state. ``aliases`` defaults to the US extras.
+    Pass an empty mapping for another country.
     """
+    if aliases is None:
+        aliases = STATE_ALIASES
     index: dict[str, str | None] = {}
     displays: set[str] = set()
     rows = list(frame.itertuples(index=False))
@@ -542,7 +592,7 @@ def build_state_index(frame) -> tuple[dict[str, str | None], tuple[str, ...]]:
         for field in ("postal", "iso_3166_2"):
             if hasattr(row, field):
                 _add_if_free(index, getattr(row, field), canonical)
-    for alias, canonical in STATE_ALIASES.items():
+    for alias, canonical in aliases.items():
         if canonical in displays:
             _add_if_free(index, alias, canonical)
     return index, tuple(sorted(displays))
@@ -595,15 +645,25 @@ def load_world() -> World:
     """Read, index, and project Natural Earth. Cached for the process."""
     countries = read_admin0()
     states = read_admin1_usa()
+    provinces = read_admin1_china()
+    prefectures = read_admin1_japan()
     country_index, country_names = build_country_index(countries)
     state_index, state_names = build_state_index(states)
+    province_index, province_names = build_state_index(provinces, aliases={})
+    prefecture_index, prefecture_names = build_state_index(prefectures, aliases={})
     return World(
         countries=project_frame(countries, 0.08),
         states=project_frame(states, 0.01),
+        provinces=project_frame(provinces, 0.01),
+        prefectures=project_frame(prefectures, 0.01),
         country_index=country_index,
         state_index=state_index,
+        province_index=province_index,
+        prefecture_index=prefecture_index,
         country_names=country_names,
         state_names=state_names,
+        province_names=province_names,
+        prefecture_names=prefecture_names,
     )
 
 
@@ -710,8 +770,24 @@ ConfigLoader.add_constructor(
     _construct_mapping,
 )
 
-_ALLOWED_KEYS = ("countries", "us_states", "cities")
+_ALLOWED_KEYS = ("countries", "us_states", "china_provinces", "japan_prefectures", "cities")
+_CONFIG_SHAPE = "countries, us_states, china_provinces, japan_prefectures, and cities"
 _CITY_KEYS = {"name", "lat", "latitude", "lon", "lng", "long", "longitude"}
+_LIST_EXAMPLES = {
+    "countries": (
+        "Use a list of ISO 3166-1 alpha-2 or alpha-3 codes or English names, "
+        "for example [NZ, Japan]."
+    ),
+    "us_states": "Use a list of US state names or USPS codes, for example [Colorado, ME].",
+    "china_provinces": (
+        "Use a list of Chinese province, autonomous region, or municipality names, "
+        "or ISO 3166-2 codes, for example [Zhejiang, CN-ZJ]."
+    ),
+    "japan_prefectures": (
+        "Use a list of Japanese prefecture names or ISO 3166-2 codes, "
+        "for example [Kyoto, JP-26]."
+    ),
+}
 
 
 def _yaml_error_text(exc: yaml.YAMLError) -> str:
@@ -729,16 +805,16 @@ def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
     except yaml.YAMLError as exc:
         raise ConfigError(
             f"{where} is not valid YAML ({_yaml_error_text(exc)}). "
-            "Use a mapping with countries, us_states, and cities."
+            f"Use a mapping with {_CONFIG_SHAPE}."
         ) from exc
     if data is None:
         raise ConfigError(
-            f"{where} is empty. List countries, us_states, and cities. "
+            f"{where} is empty. List {_CONFIG_SHAPE}. "
             "See travel.example.yml."
         )
     if not isinstance(data, dict):
         raise ConfigError(
-            f"{where} must be a YAML mapping of countries, us_states, and cities, "
+            f"{where} must be a YAML mapping of {_CONFIG_SHAPE}, "
             f"not {type(data).__name__}."
         )
     unknown = [key for key in data if key not in _ALLOWED_KEYS]
@@ -747,12 +823,18 @@ def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
         names = ", ".join(repr(key) for key in unknown)
         raise ConfigError(
             f"{where} has unknown {noun} {names}. "
-            "Supported keys are countries, us_states, and cities. "
+            f"Supported keys are {_CONFIG_SHAPE}. "
             "Other subdivisions are not supported yet."
         )
     return TravelConfig(
         countries=_string_list(_section(data, "countries", where), "countries", where),
         us_states=_string_list(_section(data, "us_states", where), "us_states", where),
+        china_provinces=_string_list(
+            _section(data, "china_provinces", where), "china_provinces", where
+        ),
+        japan_prefectures=_string_list(
+            _section(data, "japan_prefectures", where), "japan_prefectures", where
+        ),
         cities=_cities(_section(data, "cities", where), where),
         path=path,
     )
@@ -775,7 +857,7 @@ def load_config(path: Path) -> TravelConfig:
     if not path.is_file():
         raise ConfigError(
             f"config is {str(path)!r}, which does not exist. "
-            "Pass a YAML file of countries, us_states, and cities, for example travel.yml."
+            f"Pass a YAML file of {_CONFIG_SHAPE}, for example travel.yml."
         )
     try:
         text = path.read_text(encoding="utf-8")
@@ -787,11 +869,7 @@ def load_config(path: Path) -> TravelConfig:
 def _string_list(value: object, field: str, where: str) -> tuple[str, ...]:
     if value is None:
         return ()
-    example = (
-        "Use a list of ISO 3166-1 alpha-2 or alpha-3 codes or English names, for example [NZ, Japan]."
-        if field == "countries"
-        else "Use a list of US state names or USPS codes, for example [Colorado, ME]."
-    )
+    example = _LIST_EXAMPLES.get(field, "Use a list of names.")
     if isinstance(value, str) or not isinstance(value, (list, tuple)):
         raise ConfigError(f"{where}: {field} is {value!r}, which is not a list. {example}")
     items: list[str] = []
@@ -888,6 +966,52 @@ def _finite_number(value: object, label: str, example: str) -> float:
     return number
 
 
+def _resolve_named_list(
+    entries: tuple[str, ...],
+    *,
+    index: dict[str, str | None],
+    names: tuple[str, ...],
+    where: str,
+    field: str,
+    noun: str,
+    example: str,
+) -> list[str]:
+    """Match one list of places. Repeats of the same place are rejected."""
+    resolved: list[str] = []
+    seen: dict[str, str] = {}
+    for entry in entries:
+        canonical = resolve_token(
+            entry,
+            index,
+            names,
+            field=f"{where}: {field}",
+            example=example,
+        )
+        if canonical in seen:
+            raise ConfigError(
+                f"{where}: {field} entry {entry!r} is the same {noun} as "
+                f"{seen[canonical]!r}. List it once."
+            )
+        seen[canonical] = entry
+        resolved.append(canonical)
+    return resolved
+
+
+def _paint_unless_country_listed(
+    resolved: list[str],
+    countries: tuple[str, ...] | list[str],
+    adm0: str,
+    field: str,
+) -> tuple[tuple[str, ...], str | None]:
+    """Drop subdivisions when their country is already filled in full."""
+    if resolved and adm0 in countries:
+        return (), (
+            f"{adm0} is listed under countries, so the whole country is filled "
+            f"and {field} are not drawn separately."
+        )
+    return tuple(resolved), None
+
+
 def resolve_travel(config: TravelConfig, world: World | None = None) -> ResolvedTravel:
     """Match config entries to Natural Earth ids."""
     world = load_world() if world is None else world
@@ -895,58 +1019,68 @@ def resolve_travel(config: TravelConfig, world: World | None = None) -> Resolved
     country_example = (
         "Use an ISO 3166-1 alpha-2 or alpha-3 code or an English name, for example NZ or New Zealand."
     )
-    state_example = "Use a state name or USPS code, for example Wyoming or WY."
-    countries: list[str] = []
-    seen_countries: dict[str, str] = {}
-    for entry in config.countries:
-        code = resolve_token(
-            entry,
-            world.country_index,
-            world.country_names,
-            field=f"{where}: countries",
-            example=country_example,
-        )
-        if code in seen_countries:
-            raise ConfigError(
-                f"{where}: countries entry {entry!r} is the same country as "
-                f"{seen_countries[code]!r}. List it once."
-            )
-        seen_countries[code] = entry
-        countries.append(code)
-
-    states: list[str] = []
-    seen_states: dict[str, str] = {}
-    for entry in config.us_states:
-        canonical = resolve_token(
-            entry,
-            world.state_index,
-            world.state_names,
-            field=f"{where}: us_states",
-            example=state_example,
-        )
-        if canonical in seen_states:
-            raise ConfigError(
-                f"{where}: us_states entry {entry!r} is the same state as "
-                f"{seen_states[canonical]!r}. List it once."
-            )
-        seen_states[canonical] = entry
-        states.append(canonical)
-
-    note = None
-    painted_states: tuple[str, ...] = tuple(states)
-    # A country listed whole is filled entirely. Its subdivisions are not
-    # drawn on top, so a partial list cannot tint the rest of the country.
-    if states and "USA" in countries:
-        painted_states = ()
-        note = (
-            "USA is listed under countries, so the whole country is filled "
-            "and us_states are not drawn separately."
-        )
+    countries = _resolve_named_list(
+        config.countries,
+        index=world.country_index,
+        names=world.country_names,
+        where=where,
+        field="countries",
+        noun="country",
+        example=country_example,
+    )
+    states, state_note = _paint_unless_country_listed(
+        _resolve_named_list(
+            config.us_states,
+            index=world.state_index,
+            names=world.state_names,
+            where=where,
+            field="us_states",
+            noun="state",
+            example="Use a state name or USPS code, for example Wyoming or WY.",
+        ),
+        countries,
+        "USA",
+        "us_states",
+    )
+    provinces, province_note = _paint_unless_country_listed(
+        _resolve_named_list(
+            config.china_provinces,
+            index=world.province_index,
+            names=world.province_names,
+            where=where,
+            field="china_provinces",
+            noun="province",
+            example=(
+                "Use a province, autonomous region, or municipality name, or an "
+                "ISO 3166-2 code, for example Zhejiang or CN-ZJ."
+            ),
+        ),
+        countries,
+        "CHN",
+        "china_provinces",
+    )
+    prefectures, prefecture_note = _paint_unless_country_listed(
+        _resolve_named_list(
+            config.japan_prefectures,
+            index=world.prefecture_index,
+            names=world.prefecture_names,
+            where=where,
+            field="japan_prefectures",
+            noun="prefecture",
+            example="Use a prefecture name or an ISO 3166-2 code, for example Kyoto or JP-26.",
+        ),
+        countries,
+        "JPN",
+        "japan_prefectures",
+    )
+    notes = [note for note in (state_note, province_note, prefecture_note) if note]
     return ResolvedTravel(
         countries=tuple(countries),
-        states=painted_states,
+        states=states,
+        provinces=provinces,
+        prefectures=prefectures,
         cities=config.cities,
-        note=note,
+        note=" ".join(notes) if notes else None,
     )
 
 
@@ -1062,18 +1196,25 @@ def draw_map(ax, world: World, resolved: ResolvedTravel, theme: str, palette: st
         width=0.3,
         zorder=1,
     )
-    state_frame = _subset(world.states, "name", resolved.states)
-    country_frame = _subset(countries, "adm0_a3", resolved.countries)
+    # Subdivisions share the visited color. A listed country is filled in full
+    # and its subdivisions are already omitted from ``resolved``.
+    visited_layers = (
+        (_subset(world.states, "name", resolved.states), 0.18),
+        (_subset(world.provinces, "name", resolved.provinces), 0.18),
+        (_subset(world.prefectures, "name", resolved.prefectures), 0.18),
+        (_subset(countries, "adm0_a3", resolved.countries), 0.3),
+    )
     stripe = ink.get("stripe")
     if stripe is None:
-        _paint(ax, state_frame, face=ink["visited"], edge=chrome["edge"], width=0.18, zorder=2)
-        _paint(ax, country_frame, face=ink["visited"], edge=chrome["edge"], width=0.3, zorder=2)
+        for frame, width in visited_layers:
+            _paint(ax, frame, face=ink["visited"], edge=chrome["edge"], width=width, zorder=2)
     else:
-        _paint(ax, state_frame, face=ink["visited"], edge="none", width=0, zorder=2)
-        _paint(ax, country_frame, face=ink["visited"], edge="none", width=0, zorder=2)
-        paint_stripes(ax, list(state_frame.geometry) + list(country_frame.geometry), stripe)
-        _paint(ax, state_frame, face=None, edge=chrome["edge"], width=0.18, zorder=4)
-        _paint(ax, country_frame, face=None, edge=chrome["edge"], width=0.3, zorder=4)
+        for frame, _width in visited_layers:
+            _paint(ax, frame, face=ink["visited"], edge="none", width=0, zorder=2)
+        geometries = [geom for frame, _width in visited_layers for geom in frame.geometry]
+        paint_stripes(ax, geometries, stripe)
+        for frame, width in visited_layers:
+            _paint(ax, frame, face=None, edge=chrome["edge"], width=width, zorder=4)
     if resolved.cities:
         xs = [city.lon + 360.0 if city.lon < SEAM else city.lon for city in resolved.cities]
         ys = [city.lat for city in resolved.cities]

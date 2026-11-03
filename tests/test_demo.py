@@ -13,7 +13,11 @@ from make_demo import (  # noqa: E402
     CONTINENT_QUOTAS,
     DISPUTED_TYPES,
     EXCLUDED_COUNTRIES,
+    EXCLUDED_PROVINCES,
+    PREFECTURE_COUNT,
+    PROVINCE_COUNT,
     SEED,
+    SUBDIVISION_COUNTRIES,
     dump_config,
     synthetic_config,
 )
@@ -35,12 +39,16 @@ def test_demo_places_are_generated_labels() -> None:
     config = synthetic_config()
     assert 25 <= len(config.countries) <= 35
     assert 8 <= len(config.us_states) <= 12
+    assert len(config.china_provinces) == PROVINCE_COUNT
+    assert len(config.japan_prefectures) == PREFECTURE_COUNT
     assert 40 <= len(config.cities) <= 60
     assert [city.name for city in config.cities] == [
         f"Site {number:02d}" for number in range(1, len(config.cities) + 1)
     ]
     assert "USA" not in config.countries
     assert EXCLUDED_COUNTRIES.isdisjoint(config.countries)
+    assert SUBDIVISION_COUNTRIES.isdisjoint(config.countries)
+    assert EXCLUDED_PROVINCES.isdisjoint(config.china_provinces)
     for city in config.cities:
         assert -90 <= city.lat <= 90
         assert -180 <= city.lon <= 180

@@ -1,7 +1,8 @@
 name: Travel Footprint
 description: >-
-  Render a Pacific-centred world map of visited countries, US states, and
-  cities. Writes one dark PNG and one light PNG.
+  Render a Pacific-centred world map of visited countries, US states,
+  Chinese provinces, Japanese prefectures, and cities. Writes one dark PNG
+  and one light PNG.
 author: KenYanL
 
 branding:
@@ -11,9 +12,10 @@ branding:
 inputs:
   config:
     description: >-
-      Workspace path of the YAML file listing countries, us_states, and
-      cities. ISO codes or English names for countries, state names or USPS
-      codes, and city name plus lat/lon.
+      Workspace path of the YAML file listing countries, us_states,
+      china_provinces, japan_prefectures, and cities. ISO codes or English
+      names for countries, state names or USPS codes, province and prefecture
+      names or ISO 3166-2 codes, and city name plus lat/lon.
     required: false
     default: travel.yml
   output:

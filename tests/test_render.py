@@ -119,6 +119,71 @@ def test_listing_the_whole_country_covers_states(world) -> None:
     assert "us_states" in resolved.note
 
 
+def test_china_and_japan_names_resolve(world) -> None:
+    config = parse_config(
+        "china_provinces:\n"
+        "  - Zhejiang\n"
+        "  - CN-SC\n"
+        "  - Beijing\n"
+        "  - 'Inner Mongolia'\n"
+        "japan_prefectures:\n"
+        "  - Kyoto\n"
+        "  - Hokkaido\n"
+        "  - JP-13\n"
+        "  - Osaka\n"
+    )
+    resolved = resolve_travel(config, world)
+    assert resolved.provinces == ("Zhejiang", "Sichuan", "Beijing", "Inner Mongol")
+    assert resolved.prefectures == ("Kyōto", "Hokkaidō", "Tokyo", "Ōsaka")
+    assert resolved.countries == ()
+    assert len(world.province_names) == 31
+    assert len(world.prefecture_names) == 47
+
+
+def test_unknown_province_suggests_a_close_name(world) -> None:
+    config = parse_config("china_provinces:\n  - Zhejiag\n")
+    with pytest.raises(ConfigError, match="Zhejiang") as caught:
+        resolve_travel(config, world)
+    message = str(caught.value)
+    assert "Zhejiag" in message
+    assert "china_provinces" in message
+
+
+def test_unknown_prefecture_names_the_entry(world) -> None:
+    config = parse_config("japan_prefectures:\n  - Notaprefecture\n")
+    with pytest.raises(ConfigError, match="Notaprefecture") as caught:
+        resolve_travel(config, world)
+    assert "japan_prefectures" in str(caught.value)
+    assert "Did you mean" not in str(caught.value)
+
+
+def test_province_listed_twice_is_rejected(world) -> None:
+    config = parse_config("china_provinces:\n  - Zhejiang\n  - CN-ZJ\n")
+    with pytest.raises(ConfigError, match="same province"):
+        resolve_travel(config, world)
+
+
+def test_prefecture_listed_twice_is_rejected(world) -> None:
+    config = parse_config("japan_prefectures:\n  - Kyoto\n  - JP-26\n")
+    with pytest.raises(ConfigError, match="same prefecture"):
+        resolve_travel(config, world)
+
+
+def test_listing_china_or_japan_covers_subdivisions(world) -> None:
+    config = parse_config(
+        "countries:\n  - CN\n  - Japan\n"
+        "china_provinces:\n  - Zhejiang\n"
+        "japan_prefectures:\n  - Kyoto\n"
+    )
+    resolved = resolve_travel(config, world)
+    assert resolved.countries == ("CHN", "JPN")
+    assert resolved.provinces == ()
+    assert resolved.prefectures == ()
+    assert resolved.note is not None
+    assert "china_provinces" in resolved.note
+    assert "japan_prefectures" in resolved.note
+
+
 def test_ambiguous_token_is_rejected() -> None:
     index = {"georgia": None}
     with pytest.raises(ConfigError, match="more than one"):
@@ -227,9 +292,60 @@ def test_us_states_do_not_fill_the_whole_country(world, tmp_path: Path) -> None:
     assert country_green > state_green * 8
 
 
+def test_subdivisions_do_not_fill_the_whole_country(world, tmp_path: Path) -> None:
+    partial = render_maps(
+        parse_config(
+            "china_provinces:\n  - Sichuan\n"
+            "japan_prefectures:\n  - Hokkaido\n"
+        ),
+        tmp_path / "partial",
+        "default",
+        date(2026, 6, 1),
+        world=world,
+    )
+    whole = render_maps(
+        parse_config("countries:\n  - CN\n  - JP\n"),
+        tmp_path / "whole",
+        "default",
+        date(2026, 6, 1),
+        world=world,
+    )
+    partial_green = _count_near(partial.dark_path, "#3fb950")
+    whole_green = _count_near(whole.dark_path, "#3fb950")
+    assert partial.resolved.provinces == ("Sichuan",)
+    assert partial.resolved.prefectures == ("Hokkaidō",)
+    assert partial.resolved.countries == ()
+    assert partial_green > 100
+    assert whole_green > partial_green * 3
+    # Default is a solid fill, so the Christmas stripe green is absent.
+    assert _count_near(partial.dark_path, "#6a994e") < 40
+    assert _count_near(partial.light_path, "#1a7f37") > 100
+
+
+def test_christmas_stripes_cover_a_province(world, tmp_path: Path) -> None:
+    festive = render_maps(
+        parse_config("china_provinces:\n  - Sichuan\njapan_prefectures:\n  - Hokkaido\n"),
+        tmp_path / "festive",
+        "christmas",
+        date(2026, 12, 25),
+        world=world,
+    )
+    assert festive.palette == "christmas"
+    red = _count_near(festive.dark_path, "#bc4749")
+    green = _count_near(festive.dark_path, "#6a994e")
+    assert red > 100
+    assert green > 100
+    assert 0.25 < green / (red + green) < 0.75
+    assert _count_near(festive.light_path, "#bc4749") > 100
+    assert _count_near(festive.light_path, "#6a994e") > 100
+    assert _count_near(festive.dark_path, "#3fb950") < 50
+
+
 def test_vendored_zips_match_checksums() -> None:
+    from footprint import DATASET_NAMES
+
     sums = load_checksums()
-    for name in ("ne_50m_admin_0_countries.zip", "ne_50m_admin_1_states_provinces.zip"):
+    for name in DATASET_NAMES:
         path = locate_dataset(name)
         assert path == ROOT / "data" / name
         verify_sha256(path, sums[name], name)

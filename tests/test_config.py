@@ -15,6 +15,8 @@ def test_example_file_has_the_documented_shape() -> None:
     config = load_config(EXAMPLE)
     assert config.countries == ("IS", "NZ", "CL")
     assert config.us_states == ("CO", "ME")
+    assert config.china_provinces == ("Zhejiang", "Sichuan")
+    assert config.japan_prefectures == ("Kyoto", "Hokkaido")
     assert [city.name for city in config.cities] == ["Sample Harbor", "Sample Ridge"]
     assert config.cities[0].lat == pytest.approx(64.15)
     assert config.cities[0].lon == pytest.approx(-21.95)
@@ -24,6 +26,8 @@ def test_omitted_keys_are_empty_lists() -> None:
     config = parse_config("countries:\n  - NZ\n")
     assert config.countries == ("NZ",)
     assert config.us_states == ()
+    assert config.china_provinces == ()
+    assert config.japan_prefectures == ()
     assert config.cities == ()
 
 
@@ -163,6 +167,13 @@ def test_empty_city_name_is_rejected() -> None:
 def test_state_list_must_be_text() -> None:
     with pytest.raises(ConfigError, match="us_states"):
         parse_config("us_states:\n  - 12\n")
+
+
+def test_province_and_prefecture_lists_must_be_text() -> None:
+    with pytest.raises(ConfigError, match="china_provinces"):
+        parse_config("china_provinces:\n  - 12\n")
+    with pytest.raises(ConfigError, match="japan_prefectures"):
+        parse_config("japan_prefectures: Kyoto\n")
 
 
 def test_edges_of_the_coordinate_range_are_kept() -> None:

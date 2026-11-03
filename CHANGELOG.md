@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Reusable composite action and `travel_footprint.py` CLI that render a Pacific-centred world map from a YAML file of countries, US states, and cities. Writes `travel-map.png` (dark) and `travel-map-light.png` (light).
+- `china_provinces` and `japan_prefectures`. A listed province, autonomous region, municipality, or prefecture is filled on its own; the rest of that country stays plain land. Names accept the Natural Earth English name or an ISO 3166-2 code. An unknown name fails with a suggestion when one is close. Listing `China` or `Japan` under `countries` still fills that country entirely, and the subdivision list is not drawn on top.
+- Japanese prefectures from a public-domain Natural Earth 1:10m admin-1 extract in `data/`. The vendored 1:50m admin-1 file has Chinese provinces and US states, and it does not include Japan.
 - Palettes `default`, `halloween`, `christmas`, and `auto`. `auto` uses Halloween on 31 October (UTC), Christmas on 24, 25, and 26 December (UTC), and the green map every other day.
 - Vendored Natural Earth 1:50m admin-0 and admin-1 extracts, with a download cache and sha256 check when the files are absent.
 - Pytest coverage for config validation, palette dates, and a smoke render. The CI workflow runs those tests on pull requests.

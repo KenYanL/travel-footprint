@@ -7,11 +7,25 @@ countries:
 
 # US states accept a name or a USPS code. Only these states are filled.
 # The rest of the United States stays the plain land color. Listing USA
-# under countries fills the whole country instead. Other subdivisions are
-# not supported yet.
+# under countries fills the whole country instead.
 us_states:
   - CO
   - ME
+
+# Chinese first-level units: a province, autonomous region, or municipality
+# name, or an ISO 3166-2 code. Only these are filled. The rest of China
+# stays the plain land color. Listing China under countries fills the
+# whole country instead.
+china_provinces:
+  - Zhejiang
+  - Sichuan
+
+# Japanese prefectures: a name or an ISO 3166-2 code. Hokkaido, Tokyo,
+# Kyoto, and Osaka are included. Only these are filled. Listing Japan
+# under countries fills the whole country instead.
+japan_prefectures:
+  - Kyoto
+  - Hokkaido
 
 cities:
   - name: Sample Harbor
