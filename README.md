@@ -8,11 +8,13 @@
 
 A Pacific-centred world map of countries, US states, Chinese provinces, Japanese prefectures, and cities, drawn for a profile README.
 
-*Reusable GitHub Action and Python CLI. One dark PNG, one light PNG, from a YAML file you keep in the repo.*
+*Reusable GitHub Action and Python CLI. One dark map and one light map, from a YAML file you keep in the repo. PNG by default; the same map can be written as SVG.*
 
-The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-map-christmas.png`.
+The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-map-christmas.png` and SVG copies of each map: `demo/travel-map.svg`, `demo/travel-map-light.svg`, and `demo/travel-map-christmas.svg`.
 
 ![Same fictional demo with the Christmas palette](demo/travel-map-christmas.png)
+
+![Same fictional demo as SVG](demo/travel-map.svg)
 
 See [CHANGELOG.md](CHANGELOG.md) for the history of this action.
 
@@ -59,7 +61,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The map files land at the root of `output` as `travel-map.png` (dark) and `travel-map-light.png` (light). Embed them with:
+The map files land at the root of `output` as `travel-map.png` (dark) and `travel-map-light.png` (light). Omit `format` to keep that PNG pair. Set `format` to `svg` to write `travel-map.svg` and `travel-map-light.svg` instead, or `both` to write the PNGs and the SVGs. Embed the PNGs with:
 
 ```html
 <picture>
@@ -69,26 +71,31 @@ The map files land at the root of `output` as `travel-map.png` (dark) and `trave
 </picture>
 ```
 
-`travel-map.png` is the dark map. The light map is `travel-map-light.png`.
+`travel-map.png` is the dark map. The light map is `travel-map-light.png`. The SVG names follow the same pattern: `travel-map.svg` and `travel-map-light.svg`. Embed those the same way, with a `.svg` path, when `format` is `svg` or `both`.
 
 ### Inputs
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `config` | no | `travel.yml` | YAML file of countries, US states, Chinese provinces, Japanese prefectures, and cities. |
-| `output` | no | `dist` | Directory for the two PNGs. |
+| `output` | no | `dist` | Directory for the map files. |
 | `palette` | no | `default` | `default`, `halloween`, `christmas`, or `auto`. |
+| `format` | no | `png` | `png`, `svg`, or `both`. |
 
 `auto` uses the Halloween colors on 31 October (UTC), the Christmas colors on 24, 25, and 26 December (UTC), and the green map every other UTC day. The same rule as contrib-tetris. Omit `palette` to keep the green map on every day, including those holidays.
 
-Invalid values fail the step before any PNG is written. The message names the field and a valid example.
+`format` chooses the files. `png` writes the two PNGs. `svg` writes the two SVGs. `both` writes all four. Omit `format` to keep writing only the two PNGs.
+
+Invalid values fail the step before any map is written. The message names the field and a valid example.
 
 ### Outputs
 
 | Output | Description |
 | --- | --- |
-| `map_dark_path` | Path of `travel-map.png`. |
-| `map_light_path` | Path of `travel-map-light.png`. |
+| `map_dark_path` | Path of `travel-map.png`, when `format` is `png` or `both`. |
+| `map_light_path` | Path of `travel-map-light.png`, when `format` is `png` or `both`. |
+| `map_dark_svg_path` | Path of `travel-map.svg`, when `format` is `svg` or `both`. |
+| `map_light_svg_path` | Path of `travel-map-light.svg`, when `format` is `svg` or `both`. |
 
 The action installs its Python dependencies into a virtualenv on the runner, then runs `travel_footprint.py`. Map data ships inside the action, so the step does not download Natural Earth.
 
@@ -139,11 +146,11 @@ The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border
 | `christmas` | dark | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 | `christmas` | light | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 
-Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the PNG's resolution, half red and half green, clipped to the visited shapes. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick.
+Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the map's resolution, half red and half green, clipped to the visited shapes. In the SVG those stripes are a pattern, still `#bc4749` under `#6a994e`, with the same 8px period and `#f2e8cf` dots. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick.
 
 ## How it is drawn
 
-Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays pixel-aligned diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Each PNG is 1200×474.
+Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Each PNG is 1200×474. The SVG uses that same frame as its viewBox, the same projection, and the same fills.
 
 Countries and the 1:50m admin-1 file (US states and Chinese provinces) are the unmodified Natural Earth zips in [`data/`](data/README.md), public domain, checked against `data/SHA256SUMS`. Japanese prefectures are a public-domain extract of Natural Earth 1:10m admin-1, because the 1:50m admin-1 theme does not include Japan. If a 1:50m zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing. The Japan extract ships with the repository.
 
@@ -156,10 +163,11 @@ python3 -m pip install -r requirements.txt pytest
 python3 -m pytest
 python3 travel_footprint.py --config travel.example.yml --out dist --palette default
 python3 travel_footprint.py --config travel.yml --out dist --palette auto --date 2026-12-25
+python3 travel_footprint.py --config travel.example.yml --out dist --format both
 python3 scripts/make_demo.py
 ```
 
-`--palette` is the same choice as the action input. `--date` is the UTC day used when the palette is `auto`. Halloween is 31 October. Christmas is 24, 25, and 26 December.
+`--palette` is the same choice as the action input. `--date` is the UTC day used when the palette is `auto`. Halloween is 31 October. Christmas is 24, 25, and 26 December. `--format` is `png` (the default), `svg`, or `both`.
 
 [`.github/workflows/test.yml`](.github/workflows/test.yml) runs the tests on pull requests and on pushes to `main`.
 

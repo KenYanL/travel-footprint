@@ -69,7 +69,25 @@ def test_demo_spans_continents_and_skips_disputed_places() -> None:
 
 def test_demo_images_are_committed() -> None:
     demo = ROOT / "demo"
-    for name in ("travel-map.png", "travel-map-light.png", "travel-map-christmas.png"):
+    for name in (
+        "travel-map.png",
+        "travel-map-light.png",
+        "travel-map-christmas.png",
+        "travel-map.svg",
+        "travel-map-light.svg",
+        "travel-map-christmas.svg",
+    ):
         path = demo / name
         assert path.is_file(), name
         assert path.stat().st_size > 8_000
+
+
+def test_committed_demo_svgs_match_the_generator(tmp_path: Path) -> None:
+    from make_demo import render_demo
+
+    source = ROOT / "demo" / "travel.yml"
+    config_path = tmp_path / "travel.yml"
+    config_path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    render_demo(config_path, tmp_path)
+    for name in ("travel-map.svg", "travel-map-light.svg", "travel-map-christmas.svg"):
+        assert (tmp_path / name).read_bytes() == (ROOT / "demo" / name).read_bytes()

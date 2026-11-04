@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- SVG output. `--format svg` writes `travel-map.svg` and `travel-map-light.svg`. `--format both` writes those beside the PNGs. The default stays `png`, so existing runs still write only the two PNGs. The action input is `format`, with `map_dark_svg_path` and `map_light_svg_path` set when an SVG is written. Christmas stripes are an SVG pattern: visited regions stay `#bc4749` with `#6a994e` 8px diagonal bands and `#f2e8cf` dots. Default and Halloween stay solid fills.
 - Reusable composite action and `travel_footprint.py` CLI that render a Pacific-centred world map from a YAML file of countries, US states, and cities. Writes `travel-map.png` (dark) and `travel-map-light.png` (light).
 - `china_provinces` and `japan_prefectures`. A listed province, autonomous region, municipality, or prefecture is filled on its own; the rest of that country stays plain land. Names accept the Natural Earth English name or an ISO 3166-2 code. An unknown name fails with a suggestion when one is close. Listing `China` or `Japan` under `countries` still fills that country entirely, and the subdivision list is not drawn on top.
 - Japanese prefectures from a public-domain Natural Earth 1:10m admin-1 extract in `data/`. The vendored 1:50m admin-1 file has Chinese provinces and US states, and it does not include Japan.

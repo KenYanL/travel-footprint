@@ -4,6 +4,7 @@ Countries, US states, Chinese provinces, Japanese prefectures, and cities come
 from the caller's YAML file. Coastlines come from the Natural Earth extracts
 under ``data/`` (see ``data/README.md``). The map is plate carrée, seam at
 30°W, so the Pacific sits in the middle and the Americas sit on the right.
+The default files are PNG. The same map can also be written as SVG.
 """
 
 from __future__ import annotations
@@ -51,6 +52,8 @@ DATASET_URLS = {
 
 DARK_FILENAME = "travel-map.png"
 LIGHT_FILENAME = "travel-map-light.png"
+DARK_SVG_FILENAME = "travel-map.svg"
+LIGHT_SVG_FILENAME = "travel-map-light.svg"
 
 # Pacific-centred plate carrée. Seam at 30°W (central meridian 150°E).
 # Land west of the seam is shifted by +360 so the Americas sit on the right.
@@ -61,8 +64,20 @@ _WEST = box(-180.0, -90.0, SEAM, 90.0)
 _EAST = box(SEAM, -90.0, 180.0, 90.0)
 
 # Figure size matches a 360° by 142° frame, so the map fills the PNG.
+# SVG user units use that same pixel grid (1200 by 474).
 FIGSIZE = (12.0, 4.74)
 FIG_DPI = 100
+SVG_WIDTH = int(round(FIGSIZE[0] * FIG_DPI))
+SVG_HEIGHT = int(round(FIGSIZE[1] * FIG_DPI))
+
+# Matplotlib point sizes shared by the PNG and the SVG so the two files match.
+LAND_LINEWIDTH = 0.3
+SUBDIVISION_LINEWIDTH = 0.18
+COUNTRY_LINEWIDTH = 0.3
+CITY_HALO_AREA = 35
+CITY_DOT_AREA = 10
+CITY_DOT_LINEWIDTH = 0.8
+CITY_HALO_ALPHA = 0.25
 
 # Dark chrome matches the GitHub dark canvas: grey land, no visible border.
 THEMES: dict[str, dict[str, str]] = {
@@ -112,6 +127,7 @@ STRIPE_FRACTION = 0.5
 STRIPE_SUPERSAMPLE = 4
 
 PALETTE_NAMES = ("default", "halloween", "christmas", "auto")
+FORMAT_NAMES = ("png", "svg", "both")
 
 # ``auto`` follows the same UTC days as contrib-tetris.
 AUTO_HOLIDAYS: tuple[tuple[str, tuple[tuple[int, int], ...]], ...] = (
@@ -215,10 +231,12 @@ class World:
 
 @dataclass(frozen=True)
 class RenderResult:
-    dark_path: Path
-    light_path: Path
+    dark_path: Path | None
+    light_path: Path | None
     palette: str
     resolved: ResolvedTravel
+    dark_svg_path: Path | None = None
+    light_svg_path: Path | None = None
 
 
 def normalize_name(value: str) -> str:
@@ -250,6 +268,18 @@ def resolve_palette(name: str, today: date) -> str:
     if name not in PALETTES:
         raise TravelError(f"unknown palette {name!r}")
     return name
+
+
+def parse_format(raw: object) -> str:
+    """Return ``png``, ``svg``, or ``both``, or raise InputError naming ``format``."""
+    hint = "Use png for the two PNGs, svg for the two SVGs, or both to write all four."
+    if not isinstance(raw, str) or raw.strip() == "":
+        shown = "empty" if isinstance(raw, str) else repr(raw)
+        raise InputError(f"format (--format) is {shown}, which is not a known format. {hint}")
+    value = raw.strip().lower()
+    if value not in FORMAT_NAMES:
+        raise InputError(f"format (--format) is {raw!r}, which is not a known format. {hint}")
+    return value
 
 
 def parse_palette(raw: object) -> str:
@@ -596,6 +626,11 @@ def build_state_index(
         if canonical in displays:
             _add_if_free(index, alias, canonical)
     return index, tuple(sorted(displays))
+
+
+def display_lon(lon: float) -> float:
+    """Longitude in the Pacific-centred frame. West of 30°W shifts by +360°."""
+    return lon + 360.0 if lon < SEAM else lon
 
 
 def shift_geometry(geom):
@@ -1092,6 +1127,21 @@ def _subset(frame, column: str, keys: tuple[str, ...]):
     return frame[frame[column].isin(keys)]
 
 
+def _visited_frames(world: World, resolved: ResolvedTravel):
+    """Visited shapes in paint order, with the matplotlib line width in points.
+
+    A listed country is one layer. Listed states, provinces, and prefectures are
+    the others. Callers omit a layer when its frame is empty, so the rest of
+    that country stays the plain land color.
+    """
+    return (
+        ("states", _subset(world.states, "name", resolved.states), SUBDIVISION_LINEWIDTH),
+        ("provinces", _subset(world.provinces, "name", resolved.provinces), SUBDIVISION_LINEWIDTH),
+        ("prefectures", _subset(world.prefectures, "name", resolved.prefectures), SUBDIVISION_LINEWIDTH),
+        ("countries", _subset(world.countries, "adm0_a3", resolved.countries), COUNTRY_LINEWIDTH),
+    )
+
+
 def _paint(ax, frame, *, face: str | None, edge: str, width: float, zorder: int) -> None:
     if frame.empty:
         return
@@ -1193,39 +1243,42 @@ def draw_map(ax, world: World, resolved: ResolvedTravel, theme: str, palette: st
         countries,
         face=chrome["land"],
         edge=chrome["edge"],
-        width=0.3,
+        width=LAND_LINEWIDTH,
         zorder=1,
     )
     # Subdivisions share the visited color. A listed country is filled in full
     # and its subdivisions are already omitted from ``resolved``.
-    visited_layers = (
-        (_subset(world.states, "name", resolved.states), 0.18),
-        (_subset(world.provinces, "name", resolved.provinces), 0.18),
-        (_subset(world.prefectures, "name", resolved.prefectures), 0.18),
-        (_subset(countries, "adm0_a3", resolved.countries), 0.3),
-    )
+    visited_layers = _visited_frames(world, resolved)
     stripe = ink.get("stripe")
     if stripe is None:
-        for frame, width in visited_layers:
+        for _name, frame, width in visited_layers:
             _paint(ax, frame, face=ink["visited"], edge=chrome["edge"], width=width, zorder=2)
     else:
-        for frame, _width in visited_layers:
+        for _name, frame, _width in visited_layers:
             _paint(ax, frame, face=ink["visited"], edge="none", width=0, zorder=2)
-        geometries = [geom for frame, _width in visited_layers for geom in frame.geometry]
+        geometries = [geom for _name, frame, _width in visited_layers for geom in frame.geometry]
         paint_stripes(ax, geometries, stripe)
-        for frame, width in visited_layers:
+        for _name, frame, width in visited_layers:
             _paint(ax, frame, face=None, edge=chrome["edge"], width=width, zorder=4)
     if resolved.cities:
-        xs = [city.lon + 360.0 if city.lon < SEAM else city.lon for city in resolved.cities]
+        xs = [display_lon(city.lon) for city in resolved.cities]
         ys = [city.lat for city in resolved.cities]
-        ax.scatter(xs, ys, s=35, color=ink["visited"], alpha=0.25, zorder=5, linewidths=0)
         ax.scatter(
             xs,
             ys,
-            s=10,
+            s=CITY_HALO_AREA,
+            color=ink["visited"],
+            alpha=CITY_HALO_ALPHA,
+            zorder=5,
+            linewidths=0,
+        )
+        ax.scatter(
+            xs,
+            ys,
+            s=CITY_DOT_AREA,
             color=ink["dot"],
             edgecolor=ink["visited"],
-            linewidths=0.8,
+            linewidths=CITY_DOT_LINEWIDTH,
             zorder=6,
         )
     ax.set_xlim(*MAP_XLIM)
@@ -1252,6 +1305,185 @@ def _save_figure(fig, path: Path, background: str) -> None:
         plt.close(fig)
 
 
+def _num(value: float) -> str:
+    """Short decimal for an SVG coordinate. One user unit is one PNG pixel."""
+    rounded = round(float(value), 2)
+    if rounded == 0:
+        return "0"
+    return f"{rounded:.2f}".rstrip("0").rstrip(".")
+
+
+def _points_to_px(points: float) -> float:
+    """Matplotlib point size as a pixel on the PNG, which is one SVG user unit."""
+    return points * FIG_DPI / 72.0
+
+
+def _marker_radius_px(area: float) -> float:
+    """Scatter marker area, in points squared, as a pixel radius."""
+    return math.sqrt(area / math.pi) * FIG_DPI / 72.0
+
+
+def _svg_xy(lon: float, lat: float) -> tuple[float, float]:
+    """Map a Pacific-centred longitude and latitude into the SVG viewBox.
+
+    SVG y grows downward, so north is the top of the 1200 by 474 frame.
+    """
+    x = (lon - MAP_XLIM[0]) / (MAP_XLIM[1] - MAP_XLIM[0]) * SVG_WIDTH
+    y = (MAP_YLIM[1] - lat) / (MAP_YLIM[1] - MAP_YLIM[0]) * SVG_HEIGHT
+    return x, y
+
+
+def _path_data(geometries) -> str:
+    """SVG path data for polygon rings. Holes stay holes under the even-odd rule."""
+    chunks: list[str] = []
+    for geom in geometries:
+        for polygon in _polygons(geom):
+            for ring in (polygon.exterior, *polygon.interiors):
+                coords = list(ring.coords)
+                if len(coords) >= 2 and coords[0] == coords[-1]:
+                    coords = coords[:-1]
+                if len(coords) < 3:
+                    continue
+                pairs = []
+                for coord in coords:
+                    x, y = _svg_xy(float(coord[0]), float(coord[1]))
+                    pairs.append(f"{_num(x)} {_num(y)}")
+                chunks.append("M " + " L ".join(pairs) + " Z")
+    return " ".join(chunks)
+
+
+def _stripe_tile_polygons() -> tuple[tuple[tuple[float, float], ...], ...]:
+    """Green part of one Christmas stripe tile. Y grows downward, as in the PNG.
+
+    A pixel is green when ``(x + y) % STRIPE_PERIOD < STRIPE_PERIOD * STRIPE_FRACTION``,
+    the same test as ``_stripe_mask``. The tile repeats every ``STRIPE_PERIOD`` pixels,
+    which is 8px on the 1200 by 474 map, half red and half green.
+    """
+    period = float(STRIPE_PERIOD)
+    band = period * STRIPE_FRACTION
+    return (
+        ((0.0, 0.0), (band, 0.0), (0.0, band)),
+        ((period, 0.0), (period, band), (band, period), (0.0, period)),
+    )
+
+
+def _points_attr(pairs: tuple[tuple[float, float], ...]) -> str:
+    return " ".join(f"{_num(x)},{_num(y)}" for x, y in pairs)
+
+
+def _svg_document(world: World, resolved: ResolvedTravel, theme: str, palette: str) -> str:
+    """One map as SVG text. ``palette`` must already be concrete."""
+    chrome = THEMES[theme]
+    ink = PALETTES[palette][theme]
+    layers: list[tuple[str, str, float]] = []
+    for name, frame, width in _visited_frames(world, resolved):
+        data = _path_data(frame.geometry)
+        if data:
+            layers.append((name, data, _points_to_px(width)))
+    land = _path_data(world.countries.geometry)
+    stripe = ink.get("stripe")
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_WIDTH}" height="{SVG_HEIGHT}" '
+            f'viewBox="0 0 {SVG_WIDTH} {SVG_HEIGHT}" role="img">'
+        ),
+        "  <title>Travel footprint</title>",
+    ]
+    if stripe and layers:
+        lines.append("  <defs>")
+        lines.append(
+            '    <pattern id="christmas-stripes" patternUnits="userSpaceOnUse" '
+            'patternContentUnits="userSpaceOnUse" x="0" y="0" '
+            f'width="{STRIPE_PERIOD}" height="{STRIPE_PERIOD}">'
+        )
+        for polygon in _stripe_tile_polygons():
+            lines.append(f'      <polygon points="{_points_attr(polygon)}" fill="{stripe}"/>')
+        lines.append("    </pattern>")
+        combined = " ".join(data for _name, data, _width in layers)
+        lines.append('    <clipPath id="visited-clip" clipPathUnits="userSpaceOnUse">')
+        lines.append(f'      <path clip-rule="evenodd" d="{combined}"/>')
+        lines.append("    </clipPath>")
+        lines.append("  </defs>")
+    lines.append(
+        f'  <rect id="background" width="{SVG_WIDTH}" height="{SVG_HEIGHT}" fill="{chrome["background"]}"/>'
+    )
+    if land:
+        stroke = _num(_points_to_px(LAND_LINEWIDTH))
+        lines.append(
+            f'  <g id="land" fill="{chrome["land"]}" stroke="{chrome["edge"]}" '
+            f'stroke-width="{stroke}" stroke-linejoin="round" stroke-linecap="round" fill-rule="evenodd">'
+        )
+        lines.append(f'    <path d="{land}"/>')
+        lines.append("  </g>")
+    if layers:
+        if stripe:
+            lines.append(f'  <g id="visited" fill="{ink["visited"]}" fill-rule="evenodd">')
+            for name, data, _width in layers:
+                lines.append(f'    <path data-layer="{name}" d="{data}"/>')
+            lines.append("  </g>")
+            lines.append('  <g id="stripes" clip-path="url(#visited-clip)">')
+            lines.append(
+                f'    <rect width="{SVG_WIDTH}" height="{SVG_HEIGHT}" fill="url(#christmas-stripes)"/>'
+            )
+            lines.append("  </g>")
+            lines.append(
+                f'  <g id="visited-edge" fill="none" stroke="{chrome["edge"]}" '
+                'stroke-linejoin="round" stroke-linecap="round">'
+            )
+            for name, data, width in layers:
+                lines.append(
+                    f'    <path data-layer="{name}" stroke-width="{_num(width)}" d="{data}"/>'
+                )
+            lines.append("  </g>")
+        else:
+            lines.append(
+                f'  <g id="visited" fill="{ink["visited"]}" stroke="{chrome["edge"]}" '
+                'fill-rule="evenodd" stroke-linejoin="round" stroke-linecap="round">'
+            )
+            for name, data, width in layers:
+                lines.append(
+                    f'    <path data-layer="{name}" stroke-width="{_num(width)}" d="{data}"/>'
+                )
+            lines.append("  </g>")
+    if resolved.cities:
+        halo_r = _num(_marker_radius_px(CITY_HALO_AREA))
+        dot_r = _num(_marker_radius_px(CITY_DOT_AREA))
+        dot_stroke = _num(_points_to_px(CITY_DOT_LINEWIDTH))
+        lines.append('  <g id="cities">')
+        for city in resolved.cities:
+            x, y = _svg_xy(display_lon(city.lon), city.lat)
+            cx, cy = _num(x), _num(y)
+            lines.append(
+                f'    <circle cx="{cx}" cy="{cy}" r="{halo_r}" fill="{ink["visited"]}" '
+                f'fill-opacity="{_num(CITY_HALO_ALPHA)}"/>'
+            )
+            lines.append(
+                f'    <circle cx="{cx}" cy="{cy}" r="{dot_r}" fill="{ink["dot"]}" '
+                f'stroke="{ink["visited"]}" stroke-width="{dot_stroke}"/>'
+            )
+        lines.append("  </g>")
+    lines.append("</svg>")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _write_atomic(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle, temporary_name = tempfile.mkstemp(prefix=".travel-map-", suffix=path.suffix, dir=path.parent)
+    os.close(handle)
+    temporary = Path(temporary_name)
+    try:
+        temporary.write_bytes(payload)
+        os.replace(temporary, path)
+    except OSError as exc:
+        temporary.unlink(missing_ok=True)
+        raise DataError(f"could not write {path} ({exc}).") from exc
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
 def render_png(world: World, resolved: ResolvedTravel, theme: str, palette: str, path: Path) -> None:
     """Write one PNG. ``palette`` must be concrete."""
     background = THEMES[theme]["background"]
@@ -1265,6 +1497,20 @@ def render_png(world: World, resolved: ResolvedTravel, theme: str, palette: str,
     _save_figure(fig, path, background)
 
 
+def render_svg(world: World, resolved: ResolvedTravel, theme: str, palette: str, path: Path) -> None:
+    """Write one SVG. ``palette`` must be concrete, not ``auto``.
+
+    The projection, palette, fills, and city dots match ``render_png``. Christmas
+    stripes are an SVG pattern: ``#bc4749`` under ``#6a994e`` diagonal bands with
+    an 8px period, clipped to the visited shapes.
+    """
+    if theme not in THEMES:
+        raise TravelError(f"unknown theme {theme!r}")
+    if palette not in PALETTES:
+        raise TravelError(f"unknown palette {palette!r}")
+    _write_atomic(path, _svg_document(world, resolved, theme, palette).encode("utf-8"))
+
+
 def render_maps(
     config: TravelConfig,
     out_dir: Path,
@@ -1272,8 +1518,15 @@ def render_maps(
     today: date,
     *,
     world: World | None = None,
+    image_format: str = "png",
 ) -> RenderResult:
-    """Resolve ``config`` and write the dark and light PNGs. Nothing is written on failure."""
+    """Resolve ``config`` and write the requested maps. Nothing is written on failure.
+
+    ``image_format`` is ``png`` (the default), ``svg``, or ``both``. ``png`` writes
+    the dark and light PNGs. ``svg`` writes the dark and light SVGs. ``both`` writes
+    all four. The default keeps the PNG-only behavior.
+    """
+    image_format = parse_format(image_format)
     if out_dir.exists() and not out_dir.is_dir():
         raise InputError(
             f"output (--out) is {str(out_dir)!r}, which is a file. Pass a directory, for example dist."
@@ -1284,10 +1537,31 @@ def render_maps(
     out_dir.mkdir(parents=True, exist_ok=True)
     dark = out_dir / DARK_FILENAME
     light = out_dir / LIGHT_FILENAME
-    render_png(world, resolved, "dark", concrete, dark)
+    dark_svg = out_dir / DARK_SVG_FILENAME
+    light_svg = out_dir / LIGHT_SVG_FILENAME
+    want_png = image_format in {"png", "both"}
+    want_svg = image_format in {"svg", "both"}
+    written: list[Path] = []
     try:
-        render_png(world, resolved, "light", concrete, light)
+        if want_png:
+            render_png(world, resolved, "dark", concrete, dark)
+            written.append(dark)
+            render_png(world, resolved, "light", concrete, light)
+            written.append(light)
+        if want_svg:
+            render_svg(world, resolved, "dark", concrete, dark_svg)
+            written.append(dark_svg)
+            render_svg(world, resolved, "light", concrete, light_svg)
+            written.append(light_svg)
     except Exception:
-        dark.unlink(missing_ok=True)
+        for path in written:
+            path.unlink(missing_ok=True)
         raise
-    return RenderResult(dark_path=dark, light_path=light, palette=concrete, resolved=resolved)
+    return RenderResult(
+        dark_path=dark if want_png else None,
+        light_path=light if want_png else None,
+        palette=concrete,
+        resolved=resolved,
+        dark_svg_path=dark_svg if want_svg else None,
+        light_svg_path=light_svg if want_svg else None,
+    )
