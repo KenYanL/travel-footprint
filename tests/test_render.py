@@ -240,6 +240,9 @@ def test_smoke_render_paints_a_country_and_one_state(world, tmp_path: Path) -> N
         assert height in {474, 475}
     assert result.dark_path.name == "travel-map.png"
     assert result.light_path.name == "travel-map-light.png"
+    assert result.dark_svg_path is None
+    assert result.light_svg_path is None
+    assert not (tmp_path / "dist" / "travel-map.svg").exists()
     assert _count_near(result.dark_path, "#0d1117") > 50_000
     assert _count_near(result.light_path, "#ffffff") > 50_000
     assert _count_near(result.dark_path, "#3fb950") > 1_000

@@ -1,8 +1,8 @@
 name: Travel Footprint
 description: >-
   Render a Pacific-centred world map of visited countries, US states,
-  Chinese provinces, Japanese prefectures, and cities. Writes one dark PNG
-  and one light PNG.
+  Chinese provinces, Japanese prefectures, and cities. Writes one dark map
+  and one light map. The default format is PNG. svg or both also writes SVG.
 author: KenYanL
 
 branding:
@@ -20,8 +20,8 @@ inputs:
     default: travel.yml
   output:
     description: >-
-      Directory for travel-map.png (dark) and travel-map-light.png (light).
-      Use dist when a later step publishes that directory.
+      Directory the map files are written to. Use dist when a later step
+      publishes that directory.
     required: false
     default: dist
   palette:
@@ -32,14 +32,28 @@ inputs:
       default every other day. An empty value is rejected.
     required: false
     default: default
+  format:
+    description: >-
+      Files to write. png writes travel-map.png and travel-map-light.png.
+      svg writes travel-map.svg and travel-map-light.svg instead. both
+      writes all four. Default png, so a workflow that omits this input
+      still writes only the two PNGs. An empty value is rejected.
+    required: false
+    default: png
 
 outputs:
   map_dark_path:
-    description: Path of the dark PNG that was written.
+    description: Path of the dark PNG, when format is png or both.
     value: ${{ steps.render.outputs.map_dark_path }}
   map_light_path:
-    description: Path of the light PNG that was written.
+    description: Path of the light PNG, when format is png or both.
     value: ${{ steps.render.outputs.map_light_path }}
+  map_dark_svg_path:
+    description: Path of the dark SVG, when format is svg or both.
+    value: ${{ steps.render.outputs.map_dark_svg_path }}
+  map_light_svg_path:
+    description: Path of the light SVG, when format is svg or both.
+    value: ${{ steps.render.outputs.map_light_svg_path }}
 
 runs:
   using: composite
@@ -64,19 +78,35 @@ runs:
         TRAVEL_CONFIG: ${{ inputs.config }}
         TRAVEL_OUTPUT: ${{ inputs.output }}
         TRAVEL_PALETTE: ${{ inputs.palette }}
+        TRAVEL_FORMAT: ${{ inputs.format }}
       run: |
         set -euo pipefail
         python="${TRAVEL_PYTHON:-python3}"
         "$python" "${{ github.action_path }}/travel_footprint.py" \
           --config "$TRAVEL_CONFIG" \
           --out "$TRAVEL_OUTPUT" \
-          --palette "${TRAVEL_PALETTE-default}"
+          --palette "${TRAVEL_PALETTE-default}" \
+          --format "${TRAVEL_FORMAT-png}"
         out="${TRAVEL_OUTPUT%/}"
+        format="${TRAVEL_FORMAT-png}"
+        format="${format#"${format%%[![:space:]]*}"}"
+        format="${format%"${format##*[![:space:]]}"}"
+        format="${format,,}"
         {
-          echo "map_dark_path<<EOF"
-          echo "$out/travel-map.png"
-          echo "EOF"
-          echo "map_light_path<<EOF"
-          echo "$out/travel-map-light.png"
-          echo "EOF"
+          if [[ "$format" == "png" || "$format" == "both" ]]; then
+            echo "map_dark_path<<EOF"
+            echo "$out/travel-map.png"
+            echo "EOF"
+            echo "map_light_path<<EOF"
+            echo "$out/travel-map-light.png"
+            echo "EOF"
+          fi
+          if [[ "$format" == "svg" || "$format" == "both" ]]; then
+            echo "map_dark_svg_path<<EOF"
+            echo "$out/travel-map.svg"
+            echo "EOF"
+            echo "map_light_svg_path<<EOF"
+            echo "$out/travel-map-light.svg"
+            echo "EOF"
+          fi
         } >> "$GITHUB_OUTPUT"

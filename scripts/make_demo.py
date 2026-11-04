@@ -3,7 +3,7 @@
 
 Picks countries, US states, Chinese provinces, and Japanese prefectures at
 random, drops city dots at random coordinates inside those shapes, and writes
-demo/travel.yml plus the preview PNGs. Nothing in that file is a real
+demo/travel.yml plus the preview PNGs and SVGs. Nothing in that file is a real
 itinerary. Sensitive and disputed countries are left out, and so are Xinjiang,
 Tibet, and Inner Mongolia. ``--out`` writes the same files somewhere else and
 leaves the committed demo alone.
@@ -39,6 +39,7 @@ from footprint import (  # noqa: E402
     read_admin1_usa,
     render_maps,
     render_png,
+    render_svg,
     resolve_travel,
 )
 
@@ -309,13 +310,14 @@ def dump_config(config: TravelConfig) -> str:
 
 
 def render_demo(config_path: Path, out_dir: Path) -> TravelConfig:
-    """Render the default dark/light pair and a Christmas dark PNG."""
+    """Render the default dark/light pair and a Christmas dark map, as PNG and SVG."""
     text = config_path.read_text(encoding="utf-8")
     config = parse_config(text, path=str(config_path))
-    render_maps(config, out_dir, "default", DEMO_DAY)
+    render_maps(config, out_dir, "default", DEMO_DAY, image_format="both")
     world = load_world()
     resolved = resolve_travel(config, world)
     render_png(world, resolved, "dark", "christmas", out_dir / "travel-map-christmas.png")
+    render_svg(world, resolved, "dark", "christmas", out_dir / "travel-map-christmas.svg")
     return config
 
 
@@ -324,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out",
         type=Path,
-        help="Directory for travel.yml and the PNGs. Defaults to demo/.",
+        help="Directory for travel.yml, the PNGs, and the SVGs. Defaults to demo/.",
     )
     args = parser.parse_args(argv)
     out = ROOT / "demo" if args.out is None else args.out
