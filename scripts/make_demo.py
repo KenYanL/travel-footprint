@@ -3,10 +3,12 @@
 
 Picks countries, US states, Chinese provinces, and Japanese prefectures at
 random, drops city dots at random coordinates inside those shapes, and writes
-demo/travel.yml plus the preview PNGs and SVGs. Nothing in that file is a real
-itinerary. Sensitive and disputed countries are left out, and so are Xinjiang,
-Tibet, and Inner Mongolia. ``--out`` writes the same files somewhere else and
-leaves the committed demo alone.
+demo/travel.yml plus the preview PNGs and SVGs. One extra US state and one
+city are marked planned. They are drawn, and in the SVG they pulse, but they
+are not counted as visited. Nothing in that file is a real itinerary.
+Sensitive and disputed countries are left out, and so are Xinjiang, Tibet,
+and Inner Mongolia. ``--out`` writes the same files somewhere else and leaves
+the committed demo alone.
 
     python3 scripts/make_demo.py
     python3 scripts/make_demo.py --out /tmp/travel-demo
@@ -267,12 +269,30 @@ def synthetic_config(rng: random.Random | None = None) -> TravelConfig:
 
     if not (40 <= len(cities) <= 60):
         raise RuntimeError(f"demo city count is {len(cities)}, expected 40 to 60")
+    # Chosen after the seeded sample, and without drawing another random
+    # number, so the visited countries, states, and cities stay put.
+    # The planned state is the first remaining name. It is not a visited state.
+    remaining_states = sorted(name for name in state_names if name not in set(chosen_states))
+    if not remaining_states:
+        raise RuntimeError("no US state left to mark as planned in the demo")
+    planned_state = remaining_states[0]
+    planned_geom = by_state[planned_state]
+    if planned_geom is None or planned_geom.is_empty:
+        raise RuntimeError(f"planned demo state {planned_state} has no geometry")
+    if not planned_geom.is_valid:
+        planned_geom = planned_geom.buffer(0)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
+        point = planned_geom.representative_point()
+    planned_lon, planned_lat = _clamp(float(point.x), float(point.y))
     return TravelConfig(
         countries=tuple(chosen_countries),
         us_states=tuple(chosen_states),
         china_provinces=tuple(chosen_provinces),
         japan_prefectures=tuple(chosen_prefectures),
         cities=tuple(cities),
+        planned_states=(planned_state,),
+        planned=(City("Sample Cove", planned_lat, planned_lon),),
     )
 
 
@@ -302,6 +322,15 @@ def dump_config(config: TravelConfig) -> str:
         lines.append(f"  - {_yaml_scalar(name)}")
     lines.append("cities:")
     for city in config.cities:
+        lines.append(f"  - name: {_yaml_scalar(city.name)}")
+        lines.append(f"    lat: {city.lat:.4f}")
+        lines.append(f"    lon: {city.lon:.4f}")
+    lines.append("# Not visited. The SVG pulses these; the PNG keeps a static fill and dot.")
+    lines.append("planned_states:")
+    for name in config.planned_states:
+        lines.append(f"  - {_yaml_scalar(name)}")
+    lines.append("planned:")
+    for city in config.planned:
         lines.append(f"  - name: {_yaml_scalar(city.name)}")
         lines.append(f"    lat: {city.lat:.4f}")
         lines.append(f"    lon: {city.lon:.4f}")

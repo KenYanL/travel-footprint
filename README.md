@@ -3,14 +3,14 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="demo/travel-map.png" />
   <source media="(prefers-color-scheme: light)" srcset="demo/travel-map-light.png" />
-  <img alt="Demo world map of fictional visited countries, US states, Chinese provinces, Japanese prefectures, and cities" src="demo/travel-map-light.png" />
+  <img alt="Demo world map of fictional visited countries, US states, Chinese provinces, Japanese prefectures, and cities, plus one planned state and city" src="demo/travel-map-light.png" />
 </picture>
 
 A Pacific-centred world map of countries, US states, Chinese provinces, Japanese prefectures, and cities, drawn for a profile README.
 
 *Reusable GitHub Action and Python CLI. One dark map and one light map, from a YAML file you keep in the repo. PNG by default; the same map can be written as SVG.*
 
-The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-map-christmas.png` and SVG copies of each map: `demo/travel-map.svg`, `demo/travel-map-light.svg`, and `demo/travel-map-christmas.svg`.
+The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It also marks one US state and one city as planned. Those two are not counted as visited. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-map-christmas.png` and SVG copies of each map: `demo/travel-map.svg`, `demo/travel-map-light.svg`, and `demo/travel-map-christmas.svg`. In the SVGs the planned state and city pulse; the PNGs keep them static.
 
 ![Same fictional demo with the Christmas palette](demo/travel-map-christmas.png)
 
@@ -77,7 +77,7 @@ The map files land at the root of `output` as `travel-map.png` (dark) and `trave
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `config` | no | `travel.yml` | YAML file of countries, US states, Chinese provinces, Japanese prefectures, and cities. |
+| `config` | no | `travel.yml` | YAML file of countries, US states, Chinese provinces, Japanese prefectures, cities, and optional planned places. |
 | `output` | no | `dist` | Directory for the map files. |
 | `palette` | no | `default` | `default`, `halloween`, `christmas`, or `auto`. |
 | `format` | no | `png` | `png`, `svg`, or `both`. |
@@ -101,7 +101,7 @@ The action installs its Python dependencies into a virtualenv on the runner, the
 
 ## Config
 
-`travel.yml` is a mapping with five keys. Leave a key out, or use an empty list, when you have nothing to draw for it.
+`travel.yml` is a mapping with seven keys. Leave a key out, or use an empty list, when you have nothing to draw for it. `planned` and `planned_states` are optional. Configs that omit them render as before.
 
 ```yaml
 countries:
@@ -121,6 +121,12 @@ cities:
   - name: Sample Harbor
     lat: 64.15
     lon: -21.95
+planned_states:
+  - OR
+planned:
+  - name: Sample Cove
+    lat: 44.00
+    lon: -120.50
 ```
 
 | Key | What it draws |
@@ -130,8 +136,12 @@ cities:
 | `china_provinces` | Only those units, in the visited color. The rest of China stays plain land. A province, autonomous region, or municipality name, or an ISO 3166-2 code (`Zhejiang`, `CN-ZJ`, `Beijing`, `Inner Mongolia`). |
 | `japan_prefectures` | Only those prefectures, in the visited color. The rest of Japan stays plain land. A name or an ISO 3166-2 code (`Kyoto`, `JP-26`, `Tokyo`, `Hokkaido`). Hokkaido, Tokyo, Kyoto, and Osaka are included. |
 | `cities` | A dot at `lat`/`lon` (or `latitude`/`longitude`). Longitude is −180 to 180, latitude −90 to 90. |
+| `planned_states` | US states you have not visited, drawn in the palette accent at about 40% opacity with a dashed outline. A name or USPS code. Not counted as visited. |
+| `planned` | Cities you have not visited, same shape as `cities`. A solid accent dot. Not counted as visited. |
 
-Listing `USA`, `China`, or `Japan` under `countries` fills that whole country, and the matching subdivision list is not drawn on top of it. Listing states, provinces, or prefectures alone does not tint the rest of that country. A repeated place, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry and, when a name is close, suggests it. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean. Other countries' subdivisions are not supported yet.
+Listing `USA`, `China`, or `Japan` under `countries` fills that whole country, and the matching subdivision list is not drawn on top of it. Listing states, provinces, or prefectures alone does not tint the rest of that country. A state listed under both `us_states` and `planned_states` is rejected: it is either visited or planned. A repeated place, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry and, when a name is close, suggests it. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean. Other countries' subdivisions are not supported yet.
+
+Planned places are painted only as pending. They stay out of the visited country, state, and city sets, so they do not change visited counts. The SVG animates them with SMIL on a 1.8s loop: the `planned-states` group fades between opacity 0.25 and 0.6, and each planned city (`planned-` plus the name, with spaces turned into hyphens) has an expanding ring and a pulsing dot. PNG shows the same fill and dot without that animation. The accent color is the palette's visited color for the theme, so the default map uses `#3fb950` on the dark theme and `#1a7f37` on the light theme, Halloween uses `#c46212`, and Christmas uses `#bc4749`.
 
 ## Palettes
 
@@ -146,11 +156,11 @@ The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border
 | `christmas` | dark | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 | `christmas` | light | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 
-Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the map's resolution, half red and half green, clipped to the visited shapes. In the SVG those stripes are a pattern, still `#bc4749` under `#6a994e`, with the same 8px period and `#f2e8cf` dots. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick.
+Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the map's resolution, half red and half green, clipped to the visited shapes. In the SVG those stripes are a pattern, still `#bc4749` under `#6a994e`, with the same 8px period and `#f2e8cf` dots. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick. Planned states and cities use that same accent, not a separate palette: a translucent fill and dashed outline for states, and a solid dot for cities. Only the SVG animates them.
 
 ## How it is drawn
 
-Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Each PNG is 1200×474. The SVG uses that same frame as its viewBox, the same projection, and the same fills.
+Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Planned states and cities are painted after that, in the accent color, and they are not part of the visited shapes. Each PNG is 1200×474. The SVG uses that same frame as its viewBox, the same projection, and the same fills, and it is the only output that runs the planned pulse.
 
 Countries and the 1:50m admin-1 file (US states and Chinese provinces) are the unmodified Natural Earth zips in [`data/`](data/README.md), public domain, checked against `data/SHA256SUMS`. Japanese prefectures are a public-domain extract of Natural Earth 1:10m admin-1, because the 1:50m admin-1 theme does not include Japan. If a 1:50m zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing. The Japan extract ships with the repository.
 

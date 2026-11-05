@@ -34,3 +34,13 @@ cities:
   - name: Sample Ridge
     lat: -41.2900
     lon: 174.7800
+
+# Not visited. Drawn in the palette accent. The SVG pulses these; the PNG
+# keeps a static fill and dot. They are left out of visited counts.
+planned_states:
+  - OR
+
+planned:
+  - name: Sample Cove
+    lat: 44.0000
+    lon: -120.5000

@@ -208,3 +208,10 @@ cities:
   - name: "Site 51"
     lat: 18.1091
     lon: 54.0585
+# Not visited. The SVG pulses these; the PNG keeps a static fill and dot.
+planned_states:
+  - Alabama
+planned:
+  - name: "Sample Cove"
+    lat: 32.5778
+    lon: -86.7183

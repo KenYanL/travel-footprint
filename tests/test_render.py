@@ -110,6 +110,30 @@ def test_unknown_state_is_rejected(world) -> None:
         resolve_travel(config, world)
 
 
+def test_planned_places_are_not_visited(world) -> None:
+    config = parse_config(
+        "countries:\n  - NZ\n"
+        "us_states:\n  - CO\n"
+        "cities:\n  - name: Sample Harbor\n    lat: 64.15\n    lon: -21.95\n"
+        "planned_states:\n  - OR\n"
+        "planned:\n  - name: Sample Cove\n    lat: 44\n    lon: -120.5\n"
+    )
+    resolved = resolve_travel(config, world)
+    assert resolved.countries == ("NZL",)
+    assert resolved.states == ("Colorado",)
+    assert [city.name for city in resolved.cities] == ["Sample Harbor"]
+    assert resolved.planned_states == ("Oregon",)
+    assert [city.name for city in resolved.planned_cities] == ["Sample Cove"]
+    assert "Oregon" not in resolved.states
+    assert "Sample Cove" not in {city.name for city in resolved.cities}
+
+
+def test_planned_state_already_visited_is_rejected(world) -> None:
+    config = parse_config("us_states:\n  - WY\nplanned_states:\n  - Wyoming\n")
+    with pytest.raises(ConfigError, match="already listed under us_states"):
+        resolve_travel(config, world)
+
+
 def test_listing_the_whole_country_covers_states(world) -> None:
     config = parse_config("countries:\n  - US\nus_states:\n  - WY\n")
     resolved = resolve_travel(config, world)
@@ -222,6 +246,42 @@ def _count_near(path: Path, hex_color: str, tolerance: int = 36) -> int:
             if distance <= tolerance:
                 hits += 1
     return hits
+
+
+def test_planned_png_is_static_and_not_a_solid_visited_fill(world, tmp_path: Path) -> None:
+    planned_text = (
+        "planned_states:\n  - TX\n"
+        "planned:\n  - name: Sample Cove\n    lat: 31.0\n    lon: -99.0\n"
+    )
+    planned = render_maps(
+        parse_config(planned_text),
+        tmp_path / "planned",
+        "default",
+        date(2026, 6, 1),
+        world=world,
+        image_format="png",
+    )
+    visited = render_maps(
+        parse_config("us_states:\n  - TX\n"),
+        tmp_path / "visited",
+        "default",
+        date(2026, 6, 1),
+        world=world,
+    )
+    assert planned.dark_svg_path is None
+    assert planned.resolved.states == ()
+    assert planned.resolved.cities == ()
+    assert planned.resolved.countries == ()
+    assert planned.resolved.planned_states == ("Texas",)
+    assert [city.name for city in planned.resolved.planned_cities] == ["Sample Cove"]
+    assert planned.dark_path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    assert not (tmp_path / "planned" / "travel-map.svg").exists()
+    planned_green = _count_near(planned.dark_path, "#3fb950")
+    visited_green = _count_near(visited.dark_path, "#3fb950")
+    # The dashed outline and the dot are accent-colored. The fill is 40%
+    # opacity, so it does not count as a solid visited shape.
+    assert planned_green > 10
+    assert visited_green > planned_green * 4
 
 
 def test_smoke_render_paints_a_country_and_one_state(world, tmp_path: Path) -> None:

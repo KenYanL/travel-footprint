@@ -20,6 +20,10 @@ def test_example_file_has_the_documented_shape() -> None:
     assert [city.name for city in config.cities] == ["Sample Harbor", "Sample Ridge"]
     assert config.cities[0].lat == pytest.approx(64.15)
     assert config.cities[0].lon == pytest.approx(-21.95)
+    assert config.planned_states == ("OR",)
+    assert [city.name for city in config.planned] == ["Sample Cove"]
+    assert config.planned[0].lat == pytest.approx(44.0)
+    assert config.planned[0].lon == pytest.approx(-120.5)
 
 
 def test_omitted_keys_are_empty_lists() -> None:
@@ -29,6 +33,8 @@ def test_omitted_keys_are_empty_lists() -> None:
     assert config.china_provinces == ()
     assert config.japan_prefectures == ()
     assert config.cities == ()
+    assert config.planned == ()
+    assert config.planned_states == ()
 
 
 def test_empty_lists_are_allowed() -> None:
@@ -174,6 +180,35 @@ def test_province_and_prefecture_lists_must_be_text() -> None:
         parse_config("china_provinces:\n  - 12\n")
     with pytest.raises(ConfigError, match="japan_prefectures"):
         parse_config("japan_prefectures: Kyoto\n")
+
+
+def test_planned_cities_use_the_same_shape_as_cities() -> None:
+    text = (
+        "planned_states:\n  - OR\n"
+        "planned:\n  - name: Sample Cove\n    latitude: 44\n    longitude: -120.5\n"
+    )
+    config = parse_config(text)
+    assert config.planned_states == ("OR",)
+    assert config.cities == ()
+    assert config.us_states == ()
+    assert config.planned[0].lat == 44
+    assert config.planned[0].lon == pytest.approx(-120.5)
+
+
+def test_planned_city_coordinate_is_checked() -> None:
+    text = "planned:\n  - name: Sample Cove\n    lat: 91\n    lon: 0\n"
+    with pytest.raises(ConfigError, match="planned entry 1 lat"):
+        parse_config(text)
+
+
+def test_repeated_planned_city_name_is_rejected() -> None:
+    text = (
+        "planned:\n"
+        "  - name: Sample Cove\n    lat: 44\n    lon: -120.5\n"
+        "  - name: sample-cove\n    lat: 45\n    lon: -121\n"
+    )
+    with pytest.raises(ConfigError, match="repeats an earlier name"):
+        parse_config(text)
 
 
 def test_edges_of_the_coordinate_range_are_kept() -> None:

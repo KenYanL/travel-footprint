@@ -1,10 +1,12 @@
 """Load a travel file and draw a Pacific-centred world map.
 
 Countries, US states, Chinese provinces, Japanese prefectures, and cities come
-from the caller's YAML file. Coastlines come from the Natural Earth extracts
-under ``data/`` (see ``data/README.md``). The map is plate carrée, seam at
-30°W, so the Pacific sits in the middle and the Americas sit on the right.
-The default files are PNG. The same map can also be written as SVG.
+from the caller's YAML file. ``planned`` cities and ``planned_states`` are
+drawn too, and they are not counted as visited. Coastlines come from the
+Natural Earth extracts under ``data/`` (see ``data/README.md``). The map is
+plate carrée, seam at 30°W, so the Pacific sits in the middle and the Americas
+sit on the right. The default files are PNG. The same map can also be written
+as SVG. Planned places pulse only in the SVG.
 """
 
 from __future__ import annotations
@@ -78,6 +80,22 @@ CITY_HALO_AREA = 35
 CITY_DOT_AREA = 10
 CITY_DOT_LINEWIDTH = 0.8
 CITY_HALO_ALPHA = 0.25
+
+# Planned places use the palette accent. The PNG is a static fill and dot.
+# The SVG pulses the same shapes with SMIL; viewers that ignore animation
+# still show the base opacity, the dashed outline, and the solid dot.
+PLANNED_FILL_ALPHA = 0.4
+PLANNED_OPACITY_VALUES = "0.25;0.6;0.25"
+PLANNED_DURATION = "1.8s"
+PLANNED_EDGE_WIDTH = 0.6  # points, matching the dashed outline on the PNG
+PLANNED_DASH_ON = 2.0  # points
+PLANNED_DASH_OFF = 1.5  # points
+PLANNED_RING_RADIUS = 2.5
+PLANNED_RING_RADIUS_END = 9
+PLANNED_RING_STROKE = 1.2
+PLANNED_DOT_RADIUS = 2.6
+PLANNED_RING_OPACITY = "1;0"
+PLANNED_DOT_OPACITY = "1;.45;1"
 
 # Dark chrome matches the GitHub dark canvas: grey land, no visible border.
 THEMES: dict[str, dict[str, str]] = {
@@ -188,6 +206,8 @@ class TravelConfig:
     cities: tuple[City, ...]
     china_provinces: tuple[str, ...] = ()
     japan_prefectures: tuple[str, ...] = ()
+    planned: tuple[City, ...] = ()
+    planned_states: tuple[str, ...] = ()
     path: str | None = None
 
     @property
@@ -202,7 +222,8 @@ class ResolvedTravel:
     ``countries`` are filled in full. ``states``, ``provinces``, and
     ``prefectures`` are the only parts of a country that get a color when
     that country itself is not listed. The rest of that country stays the
-    plain land color.
+    plain land color. ``planned_states`` and ``planned_cities`` are drawn
+    in the accent color and are not part of those visited sets.
     """
 
     countries: tuple[str, ...]
@@ -210,6 +231,8 @@ class ResolvedTravel:
     cities: tuple[City, ...]
     provinces: tuple[str, ...] = ()
     prefectures: tuple[str, ...] = ()
+    planned_states: tuple[str, ...] = ()
+    planned_cities: tuple[City, ...] = ()
     note: str | None = None
 
 
@@ -246,6 +269,20 @@ def normalize_name(value: str) -> str:
     text = text.casefold()
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return " ".join(text.split())
+
+
+def _planned_marker_id(name: str) -> str:
+    """SVG group id ``planned-<name>``. Spaces and punctuation become hyphens.
+
+    The id stays an XML Name, so ``Sample Cove`` is ``planned-Sample-Cove``.
+    A single word such as ``Harbor`` stays ``planned-Harbor``.
+    """
+    text = unicodedata.normalize("NFKD", name)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")
+    if not slug:
+        slug = "place"
+    return f"planned-{slug}"
 
 
 def resolve_palette(name: str, today: date) -> str:
@@ -805,8 +842,19 @@ ConfigLoader.add_constructor(
     _construct_mapping,
 )
 
-_ALLOWED_KEYS = ("countries", "us_states", "china_provinces", "japan_prefectures", "cities")
-_CONFIG_SHAPE = "countries, us_states, china_provinces, japan_prefectures, and cities"
+_ALLOWED_KEYS = (
+    "countries",
+    "us_states",
+    "china_provinces",
+    "japan_prefectures",
+    "cities",
+    "planned",
+    "planned_states",
+)
+_CONFIG_SHAPE = (
+    "countries, us_states, china_provinces, japan_prefectures, cities, "
+    "planned, and planned_states"
+)
 _CITY_KEYS = {"name", "lat", "latitude", "lon", "lng", "long", "longitude"}
 _LIST_EXAMPLES = {
     "countries": (
@@ -821,6 +869,10 @@ _LIST_EXAMPLES = {
     "japan_prefectures": (
         "Use a list of Japanese prefecture names or ISO 3166-2 codes, "
         "for example [Kyoto, JP-26]."
+    ),
+    "planned_states": (
+        "Use a list of US state names or USPS codes, for example [Oregon, OR]. "
+        "These are drawn as planned and are not counted as visited."
     ),
 }
 
@@ -871,6 +923,10 @@ def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
             _section(data, "japan_prefectures", where), "japan_prefectures", where
         ),
         cities=_cities(_section(data, "cities", where), where),
+        planned=_cities(_section(data, "planned", where), where, field="planned"),
+        planned_states=_string_list(
+            _section(data, "planned_states", where), "planned_states", where
+        ),
         path=path,
     )
 
@@ -928,7 +984,7 @@ def _string_list(value: object, field: str, where: str) -> tuple[str, ...]:
     return tuple(items)
 
 
-def _cities(value: object, where: str) -> tuple[City, ...]:
+def _cities(value: object, where: str, field: str = "cities") -> tuple[City, ...]:
     if value is None:
         return ()
     example = (
@@ -936,15 +992,28 @@ def _cities(value: object, where: str) -> tuple[City, ...]:
         "and lon (or longitude) from -180 to 180."
     )
     if isinstance(value, str) or not isinstance(value, (list, tuple)):
-        raise ConfigError(f"{where}: cities is {value!r}, which is not a list. {example}")
+        raise ConfigError(f"{where}: {field} is {value!r}, which is not a list. {example}")
     cities: list[City] = []
+    seen_names: set[str] = set()
+    seen_ids: set[str] = set()
     for index, item in enumerate(value, start=1):
-        cities.append(_one_city(item, index, where, example))
+        city = _one_city(item, index, where, example, field)
+        if field == "planned":
+            folded = normalize_name(city.name)
+            marker = _planned_marker_id(city.name)
+            if folded in seen_names or marker in seen_ids:
+                raise ConfigError(
+                    f"{where}: {field} entry {index} ({city.name!r}) repeats an earlier name. "
+                    "List each planned city once."
+                )
+            seen_names.add(folded)
+            seen_ids.add(marker)
+        cities.append(city)
     return tuple(cities)
 
 
-def _one_city(item: object, index: int, where: str, example: str) -> City:
-    label = f"{where}: cities entry {index}"
+def _one_city(item: object, index: int, where: str, example: str, field: str = "cities") -> City:
+    label = f"{where}: {field} entry {index}"
     if not isinstance(item, dict):
         raise ConfigError(f"{label} is {item!r}, which is not a mapping. {example}")
     unknown = [key for key in item if key not in _CITY_KEYS]
@@ -1063,20 +1132,41 @@ def resolve_travel(config: TravelConfig, world: World | None = None) -> Resolved
         noun="country",
         example=country_example,
     )
+    state_example = "Use a state name or USPS code, for example Wyoming or WY."
+    matched_states = _resolve_named_list(
+        config.us_states,
+        index=world.state_index,
+        names=world.state_names,
+        where=where,
+        field="us_states",
+        noun="state",
+        example=state_example,
+    )
     states, state_note = _paint_unless_country_listed(
-        _resolve_named_list(
-            config.us_states,
-            index=world.state_index,
-            names=world.state_names,
-            where=where,
-            field="us_states",
-            noun="state",
-            example="Use a state name or USPS code, for example Wyoming or WY.",
-        ),
+        matched_states,
         countries,
         "USA",
         "us_states",
     )
+    planned_states = _resolve_named_list(
+        config.planned_states,
+        index=world.state_index,
+        names=world.state_names,
+        where=where,
+        field="planned_states",
+        noun="state",
+        example=(
+            "Use a state name or USPS code, for example Oregon or OR. "
+            "Planned states are drawn separately and are not counted as visited."
+        ),
+    )
+    visited_states = set(matched_states)
+    for entry, canonical in zip(config.planned_states, planned_states):
+        if canonical in visited_states:
+            raise ConfigError(
+                f"{where}: planned_states entry {entry!r} is already listed under us_states. "
+                "A state is either visited or planned. Planned places are not counted as visited."
+            )
     provinces, province_note = _paint_unless_country_listed(
         _resolve_named_list(
             config.china_provinces,
@@ -1115,6 +1205,8 @@ def resolve_travel(config: TravelConfig, world: World | None = None) -> Resolved
         provinces=provinces,
         prefectures=prefectures,
         cities=config.cities,
+        planned_states=tuple(planned_states),
+        planned_cities=config.planned,
         note=" ".join(notes) if notes else None,
     )
 
@@ -1281,10 +1373,51 @@ def draw_map(ax, world: World, resolved: ResolvedTravel, theme: str, palette: st
             linewidths=CITY_DOT_LINEWIDTH,
             zorder=6,
         )
+    _draw_planned(ax, world, resolved, ink["visited"])
     ax.set_xlim(*MAP_XLIM)
     ax.set_ylim(*MAP_YLIM)
     ax.set_aspect("equal", adjustable="datalim")
     ax.axis("off")
+
+
+def _scatter_area_for_px(radius_px: float) -> float:
+    """Pixel radius on the PNG as a matplotlib scatter area, in points squared."""
+    radius_pt = radius_px * 72.0 / FIG_DPI
+    return math.pi * radius_pt * radius_pt
+
+
+def _draw_planned(ax, world: World, resolved: ResolvedTravel, color: str) -> None:
+    """Static planned fill and dot. Animation is added only when writing SVG."""
+    frame = _subset(world.states, "name", resolved.planned_states)
+    if not frame.empty:
+        frame.plot(
+            ax=ax,
+            color=color,
+            edgecolor="none",
+            linewidth=0,
+            alpha=PLANNED_FILL_ALPHA,
+            zorder=4,
+        )
+        frame.plot(
+            ax=ax,
+            facecolor="none",
+            edgecolor=color,
+            linewidth=PLANNED_EDGE_WIDTH,
+            linestyle=(0, (PLANNED_DASH_ON, PLANNED_DASH_OFF)),
+            zorder=4,
+        )
+    if not resolved.planned_cities:
+        return
+    xs = [display_lon(city.lon) for city in resolved.planned_cities]
+    ys = [city.lat for city in resolved.planned_cities]
+    ax.scatter(
+        xs,
+        ys,
+        s=_scatter_area_for_px(PLANNED_DOT_RADIUS),
+        color=color,
+        zorder=7,
+        linewidths=0,
+    )
 
 
 def _save_figure(fig, path: Path, background: str) -> None:
@@ -1463,9 +1596,72 @@ def _svg_document(world: World, resolved: ResolvedTravel, theme: str, palette: s
                 f'stroke="{ink["visited"]}" stroke-width="{dot_stroke}"/>'
             )
         lines.append("  </g>")
+    _append_planned_svg(lines, world, resolved, ink["visited"])
     lines.append("</svg>")
     lines.append("")
     return "\n".join(lines)
+
+
+def _append_planned_svg(lines: list[str], world: World, resolved: ResolvedTravel, color: str) -> None:
+    """Planned states and cities, with SMIL. Absent when the config has none.
+
+    The state group id is ``planned-states``. Each city is ``planned-<name>``.
+    Opacity and the city ring run for 1.8s, repeating. The PNG path does not
+    call this, so a PNG stays a static fill and dot.
+    """
+    frame = _subset(world.states, "name", resolved.planned_states)
+    data = _path_data(frame.geometry) if not frame.empty else ""
+    if data:
+        lines.append(
+            f'  <g id="planned-states" fill="{color}" fill-rule="evenodd" '
+            f'opacity="{_num(PLANNED_FILL_ALPHA)}">'
+        )
+        lines.append(
+            '    <animate attributeName="opacity" '
+            f'values="{PLANNED_OPACITY_VALUES}" dur="{PLANNED_DURATION}" '
+            'repeatCount="indefinite"/>'
+        )
+        lines.append(f'    <path d="{data}"/>')
+        lines.append("  </g>")
+        edge = _num(_points_to_px(PLANNED_EDGE_WIDTH))
+        dash = (
+            f"{_num(_points_to_px(PLANNED_DASH_ON))} {_num(_points_to_px(PLANNED_DASH_OFF))}"
+        )
+        lines.append(
+            f'  <g id="planned-states-edge" fill="none" stroke="{color}" '
+            f'stroke-width="{edge}" stroke-dasharray="{dash}" '
+            'stroke-linejoin="round" stroke-linecap="butt">'
+        )
+        lines.append(f'    <path d="{data}"/>')
+        lines.append("  </g>")
+    ring = _num(PLANNED_RING_RADIUS)
+    ring_end = _num(PLANNED_RING_RADIUS_END)
+    dot = _num(PLANNED_DOT_RADIUS)
+    stroke = _num(PLANNED_RING_STROKE)
+    for city in resolved.planned_cities:
+        x, y = _svg_xy(display_lon(city.lon), city.lat)
+        cx, cy = _num(x), _num(y)
+        lines.append(f'  <g id="{_planned_marker_id(city.name)}">')
+        lines.append(
+            f'    <circle cx="{cx}" cy="{cy}" r="{ring}" fill="none" '
+            f'stroke="{color}" stroke-width="{stroke}">'
+        )
+        lines.append(
+            f'      <animate attributeName="r" values="{ring};{ring_end}" '
+            f'dur="{PLANNED_DURATION}" repeatCount="indefinite"/>'
+        )
+        lines.append(
+            f'      <animate attributeName="opacity" values="{PLANNED_RING_OPACITY}" '
+            f'dur="{PLANNED_DURATION}" repeatCount="indefinite"/>'
+        )
+        lines.append("    </circle>")
+        lines.append(f'    <circle cx="{cx}" cy="{cy}" r="{dot}" fill="{color}">')
+        lines.append(
+            f'      <animate attributeName="opacity" values="{PLANNED_DOT_OPACITY}" '
+            f'dur="{PLANNED_DURATION}" repeatCount="indefinite"/>'
+        )
+        lines.append("    </circle>")
+        lines.append("  </g>")
 
 
 def _write_atomic(path: Path, payload: bytes) -> None:
@@ -1502,7 +1698,8 @@ def render_svg(world: World, resolved: ResolvedTravel, theme: str, palette: str,
 
     The projection, palette, fills, and city dots match ``render_png``. Christmas
     stripes are an SVG pattern: ``#bc4749`` under ``#6a994e`` diagonal bands with
-    an 8px period, clipped to the visited shapes.
+    an 8px period, clipped to the visited shapes. Planned states and cities, when
+    present, pulse here with SMIL. The PNG keeps them static.
     """
     if theme not in THEMES:
         raise TravelError(f"unknown theme {theme!r}")

@@ -45,6 +45,10 @@ def test_demo_places_are_generated_labels() -> None:
     assert [city.name for city in config.cities] == [
         f"Site {number:02d}" for number in range(1, len(config.cities) + 1)
     ]
+    assert len(config.planned_states) == 1
+    assert config.planned_states[0] not in config.us_states
+    assert [city.name for city in config.planned] == ["Sample Cove"]
+    assert "Sample Cove" not in {city.name for city in config.cities}
     assert "USA" not in config.countries
     assert EXCLUDED_COUNTRIES.isdisjoint(config.countries)
     assert SUBDIVISION_COUNTRIES.isdisjoint(config.countries)
@@ -65,6 +69,19 @@ def test_demo_spans_continents_and_skips_disputed_places() -> None:
         seen[row.CONTINENT] = seen.get(row.CONTINENT, 0) + 1
     for continent, quota in CONTINENT_QUOTAS:
         assert seen.get(continent) == quota
+
+
+def test_committed_demo_svg_pulses_planned_places() -> None:
+    for name in ("travel-map.svg", "travel-map-light.svg", "travel-map-christmas.svg"):
+        text = (ROOT / "demo" / name).read_text(encoding="utf-8")
+        assert 'id="planned-states"' in text
+        assert 'id="planned-Sample-Cove"' in text
+        assert 'values="0.25;0.6;0.25"' in text
+        assert 'values="2.5;9"' in text
+        assert 'dur="1.8s"' in text
+    committed = (ROOT / "demo" / "travel.yml").read_text(encoding="utf-8")
+    state = synthetic_config().planned_states[0]
+    assert f"\n  - {state}\n" in committed or f'\n  - "{state}"\n' in committed
 
 
 def test_demo_images_are_committed() -> None:

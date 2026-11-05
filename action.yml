@@ -13,9 +13,12 @@ inputs:
   config:
     description: >-
       Workspace path of the YAML file listing countries, us_states,
-      china_provinces, japan_prefectures, and cities. ISO codes or English
-      names for countries, state names or USPS codes, province and prefecture
-      names or ISO 3166-2 codes, and city name plus lat/lon.
+      china_provinces, japan_prefectures, cities, planned, and planned_states.
+      ISO codes or English names for countries, state names or USPS codes,
+      province and prefecture names or ISO 3166-2 codes, and city name plus
+      lat/lon. planned cities use that same shape. planned_states are US
+      state names or USPS codes. Planned places are drawn and are not
+      counted as visited. Their pulse is SVG-only.
     required: false
     default: travel.yml
   output:
