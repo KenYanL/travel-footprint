@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="533" height="20" viewBox="0 0 533 20" role="img" aria-label="Travel footprint: 32 countries, 13.3% of 241 world countries, 10 US states, 4 China provinces, 4 Japan prefectures">
+  <title>Travel footprint: 32 countries, 13.3% of 241 world countries, 10 US states, 4 China provinces, 4 Japan prefectures</title>
+  <defs>
+    <linearGradient id="travel-badge-shine" x2="0" y2="100%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.1"/>
+    </linearGradient>
+    <clipPath id="travel-badge-round">
+      <rect width="533" height="20" rx="3"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#travel-badge-round)">
+    <rect data-part="label-bg" width="49" height="20" fill="#0d1117"/>
+    <rect data-part="value-bg" x="49" width="484" height="20" fill="#3fb950"/>
+    <rect data-part="shine" width="533" height="20" fill="url(#travel-badge-shine)"/>
+  </g>
+  <g aria-hidden="true" text-anchor="middle" font-family="DejaVu Sans, Verdana, Geneva, sans-serif" font-size="11">
+    <text data-part="label-shadow" x="24.5" y="15" fill="#010101" fill-opacity="0.3" textLength="36.75" lengthAdjust="spacing">visited</text>
+    <text data-part="label" x="24.5" y="14" fill="#ffffff" textLength="36.75" lengthAdjust="spacing">visited</text>
+    <text data-part="value-shadow" x="291" y="15" fill="#010101" fill-opacity="0.3" textLength="471.28" lengthAdjust="spacing">32 countries · 13.3% of world · 10 US states · 4 China provinces · 4 Japan prefectures</text>
+    <text data-part="value" x="291" y="14" fill="#ffffff" textLength="471.28" lengthAdjust="spacing">32 countries · 13.3% of world · 10 US states · 4 China provinces · 4 Japan prefectures</text>
+  </g>
+</svg>

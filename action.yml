@@ -40,6 +40,15 @@ inputs:
       still writes only the two PNGs. An empty value is rejected.
     required: false
     default: png
+  badge:
+    description: >-
+      Write travel-badge.svg next to the map. true (the default) writes a
+      self-contained SVG badge of countries visited, the percent of world
+      countries, and US states, plus China provinces and Japan prefectures
+      when those units are drawn. false skips the badge and leaves the map
+      files unchanged. An empty value is rejected.
+    required: false
+    default: "true"
 
 outputs:
   map_dark_path:
@@ -54,6 +63,9 @@ outputs:
   map_light_svg_path:
     description: Path of the light SVG, when format is svg or both.
     value: ${{ steps.render.outputs.map_light_svg_path }}
+  badge_path:
+    description: Path of travel-badge.svg, when badge is true.
+    value: ${{ steps.render.outputs.badge_path }}
 
 runs:
   using: composite
@@ -79,6 +91,7 @@ runs:
         TRAVEL_OUTPUT: ${{ inputs.output }}
         TRAVEL_PALETTE: ${{ inputs.palette }}
         TRAVEL_FORMAT: ${{ inputs.format }}
+        TRAVEL_BADGE: ${{ inputs.badge }}
       run: |
         set -euo pipefail
         python="${TRAVEL_PYTHON:-python3}"
@@ -86,12 +99,17 @@ runs:
           --config "$TRAVEL_CONFIG" \
           --out "$TRAVEL_OUTPUT" \
           --palette "${TRAVEL_PALETTE-default}" \
-          --format "${TRAVEL_FORMAT-png}"
+          --format "${TRAVEL_FORMAT-png}" \
+          --badge "${TRAVEL_BADGE-true}"
         out="${TRAVEL_OUTPUT%/}"
         format="${TRAVEL_FORMAT-png}"
         format="${format#"${format%%[![:space:]]*}"}"
         format="${format%"${format##*[![:space:]]}"}"
         format="${format,,}"
+        badge="${TRAVEL_BADGE-true}"
+        badge="${badge#"${badge%%[![:space:]]*}"}"
+        badge="${badge%"${badge##*[![:space:]]}"}"
+        badge="${badge,,}"
         {
           if [[ "$format" == "png" || "$format" == "both" ]]; then
             echo "map_dark_path<<EOF"
@@ -107,6 +125,11 @@ runs:
             echo "EOF"
             echo "map_light_svg_path<<EOF"
             echo "$out/travel-map-light.svg"
+            echo "EOF"
+          fi
+          if [[ "$badge" == "true" ]]; then
+            echo "badge_path<<EOF"
+            echo "$out/travel-badge.svg"
             echo "EOF"
           fi
         } >> "$GITHUB_OUTPUT"

@@ -80,6 +80,17 @@ def test_demo_images_are_committed() -> None:
         path = demo / name
         assert path.is_file(), name
         assert path.stat().st_size > 8_000
+    badge = (demo / "travel-badge.svg").read_text(encoding="utf-8")
+    config = synthetic_config()
+    assert f"{len(config.countries)} countries" in badge
+    assert f"{len(config.us_states)} US states" in badge
+    assert f"{len(config.china_provinces)} China provinces" in badge
+    assert f"{len(config.japan_prefectures)} Japan prefectures" in badge
+    assert "#3fb950" in badge
+    assert "http://www.w3.org/2000/svg" in badge
+    assert "href" not in badge
+    for code in ("PRK", "RUS", "IRN", "ISR", "UKR"):
+        assert code not in badge
 
 
 def test_committed_demo_svgs_match_the_generator(tmp_path: Path) -> None:
@@ -89,5 +100,10 @@ def test_committed_demo_svgs_match_the_generator(tmp_path: Path) -> None:
     config_path = tmp_path / "travel.yml"
     config_path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     render_demo(config_path, tmp_path)
-    for name in ("travel-map.svg", "travel-map-light.svg", "travel-map-christmas.svg"):
+    for name in (
+        "travel-map.svg",
+        "travel-map-light.svg",
+        "travel-map-christmas.svg",
+        "travel-badge.svg",
+    ):
         assert (tmp_path / name).read_bytes() == (ROOT / "demo" / name).read_bytes()
