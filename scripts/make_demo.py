@@ -3,12 +3,13 @@
 
 Picks countries, US states, Chinese provinces, and Japanese prefectures at
 random, drops city dots at random coordinates inside those shapes, and writes
-demo/travel.yml plus the preview PNGs and SVGs. One extra US state and one
-city are marked planned. They are drawn, and in the SVG they pulse, but they
-are not counted as visited. Nothing in that file is a real itinerary.
-Sensitive and disputed countries are left out, and so are Xinjiang, Tibet,
-and Inner Mongolia. ``--out`` writes the same files somewhere else and leaves
-the committed demo alone.
+demo/travel.yml plus the preview PNGs, SVGs, and stats badge. One extra US
+state and one city are marked planned. They are drawn, and in the SVG they
+pulse, but they are not counted as visited and they are not included in the
+badge. Nothing in that file is a real itinerary. Sensitive and disputed
+countries are left out, and so are Xinjiang, Tibet, and Inner Mongolia.
+``--out`` writes the same files somewhere else and leaves the committed demo
+alone.
 
     python3 scripts/make_demo.py
     python3 scripts/make_demo.py --out /tmp/travel-demo
@@ -31,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from footprint import (  # noqa: E402
+    BADGE_FILENAME,
     City,
     TravelConfig,
     load_world,
@@ -339,10 +341,14 @@ def dump_config(config: TravelConfig) -> str:
 
 
 def render_demo(config_path: Path, out_dir: Path) -> TravelConfig:
-    """Render the default dark/light pair and a Christmas dark map, as PNG and SVG."""
+    """Render the default dark/light pair, a Christmas dark map, and the stats badge.
+
+    The badge uses the same fictional config and the default palette. It is
+    not a real itinerary.
+    """
     text = config_path.read_text(encoding="utf-8")
     config = parse_config(text, path=str(config_path))
-    render_maps(config, out_dir, "default", DEMO_DAY, image_format="both")
+    render_maps(config, out_dir, "default", DEMO_DAY, image_format="both", badge=True)
     world = load_world()
     resolved = resolve_travel(config, world)
     render_png(world, resolved, "dark", "christmas", out_dir / "travel-map-christmas.png")
@@ -355,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out",
         type=Path,
-        help="Directory for travel.yml, the PNGs, and the SVGs. Defaults to demo/.",
+        help="Directory for travel.yml, the maps, and the stats badge. Defaults to demo/.",
     )
     args = parser.parse_args(argv)
     out = ROOT / "demo" if args.out is None else args.out
@@ -364,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     config_path = out / "travel.yml"
     config_path.write_text(text, encoding="utf-8")
     render_demo(config_path, out)
-    print(f"demo seed={SEED} config={config_path}")
+    print(f"demo seed={SEED} config={config_path} badge={out / BADGE_FILENAME}")
     return 0
 
 

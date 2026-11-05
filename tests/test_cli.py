@@ -112,16 +112,21 @@ def test_action_yml_exposes_config_output_and_palette() -> None:
     text = (ROOT / "action.yml").read_text(encoding="utf-8")
     data = yaml.safe_load(text)
     assert data["runs"]["using"] == "composite"
-    assert set(data["inputs"]) == {"config", "output", "palette", "format"}
+    assert set(data["inputs"]) == {"config", "output", "palette", "format", "badge"}
     assert data["inputs"]["config"]["default"] == "travel.yml"
     assert data["inputs"]["output"]["default"] == "dist"
     assert data["inputs"]["palette"]["default"] == "default"
     assert data["inputs"]["format"]["default"] == "png"
+    assert data["inputs"]["badge"]["default"] == "true"
+    assert "false" in data["inputs"]["badge"]["description"]
+    assert "travel-badge.svg" in data["inputs"]["badge"]["description"]
     assert "svg" in data["inputs"]["format"]["description"]
     assert "both" in data["inputs"]["format"]["description"]
     assert "travel_footprint.py" in text
     assert '--palette "${TRAVEL_PALETTE-default}"' in text
     assert '--format "${TRAVEL_FORMAT-png}"' in text
+    assert '--badge "${TRAVEL_BADGE-true}"' in text
+    assert "TRAVEL_BADGE: ${{ inputs.badge }}" in text
     assert "requirements.txt" in text
     outputs = data["outputs"]
     assert set(outputs) == {
@@ -129,10 +134,13 @@ def test_action_yml_exposes_config_output_and_palette() -> None:
         "map_light_path",
         "map_dark_svg_path",
         "map_light_svg_path",
+        "badge_path",
     }
     assert outputs["map_dark_svg_path"]["value"] == "${{ steps.render.outputs.map_dark_svg_path }}"
+    assert outputs["badge_path"]["value"] == "${{ steps.render.outputs.badge_path }}"
     assert "travel-map.svg" in text
     assert "travel-map-light.svg" in text
+    assert "travel-badge.svg" in text
 
 
 def test_workflow_runs_pytest_on_pull_requests() -> None:
