@@ -4,13 +4,15 @@
 Writes a dark map and a light map from a YAML file of countries, US states,
 Chinese provinces, Japanese prefectures, and cities. The default format is
 PNG (``travel-map.png`` and ``travel-map-light.png``). ``--format svg`` writes
-the same maps as SVG, and ``--format both`` writes all four files.
+the same maps as SVG, and ``--format both`` writes all four files. A stats
+badge, ``travel-badge.svg``, is written next to the map unless ``--badge false``.
 
 Examples:
   python3 travel_footprint.py --config travel.yml --out dist/ --palette default
   python3 travel_footprint.py --config travel.yml --out dist/ --palette auto
   python3 travel_footprint.py --config travel.yml --out dist/ --palette auto --date 2026-12-25
   python3 travel_footprint.py --config travel.yml --out dist/ --format both
+  python3 travel_footprint.py --config travel.yml --out dist/ --badge false
 """
 
 from __future__ import annotations
@@ -27,7 +29,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description=(
             "Render a Pacific-centred world map of visited countries, US states, "
             "Chinese provinces, Japanese prefectures, and cities. "
-            "Writes a dark map and a light map. The default format is PNG."
+            "Writes a dark map and a light map. The default format is PNG. "
+            "Also writes travel-badge.svg unless --badge false."
         ),
     )
     parser.add_argument(
@@ -52,6 +55,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--format",
         default="png",
         help="png, svg, or both. png is the default and writes only the two PNGs.",
+    )
+    parser.add_argument(
+        "--badge",
+        default="true",
+        help=(
+            "true writes travel-badge.svg next to the map. false skips it. "
+            "Default: true. The map files are the same either way."
+        ),
     )
     parser.add_argument(
         "--date",
@@ -81,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             InputError,
             TravelError,
             load_config,
+            parse_badge,
             parse_date,
             parse_format,
             parse_palette,
@@ -99,9 +111,17 @@ def main(argv: list[str] | None = None) -> int:
         out_arg = _check_text(args.out, "output (--out)", "a directory, for example dist")
         palette = parse_palette(args.palette)
         image_format = parse_format(args.format)
+        badge = parse_badge(args.badge)
         today = parse_date(args.date) if args.date is not None else datetime.now(timezone.utc).date()
         config = load_config(Path(config_arg))
-        result = render_maps(config, Path(out_arg), palette, today, image_format=image_format)
+        result = render_maps(
+            config,
+            Path(out_arg),
+            palette,
+            today,
+            image_format=image_format,
+            badge=badge,
+        )
     except TravelError as exc:
         print(f"travel-footprint: {exc}", file=sys.stderr)
         return 1
@@ -109,7 +129,13 @@ def main(argv: list[str] | None = None) -> int:
     if result.resolved.note:
         print(f"travel-footprint: {result.resolved.note}", file=sys.stderr)
     print(f"palette {result.palette}")
-    for written in (result.dark_path, result.light_path, result.dark_svg_path, result.light_svg_path):
+    for written in (
+        result.dark_path,
+        result.light_path,
+        result.dark_svg_path,
+        result.light_svg_path,
+        result.badge_path,
+    ):
         if written is not None:
             print(f"wrote {written}")
     return 0

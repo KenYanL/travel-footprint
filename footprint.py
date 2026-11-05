@@ -4,7 +4,8 @@ Countries, US states, Chinese provinces, Japanese prefectures, and cities come
 from the caller's YAML file. Coastlines come from the Natural Earth extracts
 under ``data/`` (see ``data/README.md``). The map is plate carrée, seam at
 30°W, so the Pacific sits in the middle and the Americas sit on the right.
-The default files are PNG. The same map can also be written as SVG.
+The default files are PNG. The same map can also be written as SVG. A stats
+badge SVG is written next to those files unless the caller turns it off.
 """
 
 from __future__ import annotations
@@ -54,6 +55,7 @@ DARK_FILENAME = "travel-map.png"
 LIGHT_FILENAME = "travel-map-light.png"
 DARK_SVG_FILENAME = "travel-map.svg"
 LIGHT_SVG_FILENAME = "travel-map-light.svg"
+BADGE_FILENAME = "travel-badge.svg"
 
 # Pacific-centred plate carrée. Seam at 30°W (central meridian 150°E).
 # Land west of the seam is shifted by +360 so the Americas sit on the right.
@@ -213,6 +215,23 @@ class ResolvedTravel:
     note: str | None = None
 
 
+@dataclass(frozen=True)
+class TravelStats:
+    """Counts drawn on the map, plus the country total those counts are compared with.
+
+    ``world_countries`` is every Natural Earth admin-0 country the map can
+    draw, Antarctica excluded. Province and prefecture counts are zero when
+    those units are not drawn, including when the whole country is filled
+    instead.
+    """
+
+    countries: int
+    world_countries: int
+    us_states: int
+    china_provinces: int
+    japan_prefectures: int
+
+
 @dataclass
 class World:
     countries: object
@@ -237,6 +256,7 @@ class RenderResult:
     resolved: ResolvedTravel
     dark_svg_path: Path | None = None
     light_svg_path: Path | None = None
+    badge_path: Path | None = None
 
 
 def normalize_name(value: str) -> str:
@@ -280,6 +300,23 @@ def parse_format(raw: object) -> str:
     if value not in FORMAT_NAMES:
         raise InputError(f"format (--format) is {raw!r}, which is not a known format. {hint}")
     return value
+
+
+def parse_badge(raw: object) -> bool:
+    """Return whether to write ``travel-badge.svg``.
+
+    ``true`` and ``false`` are accepted in any case, with surrounding
+    whitespace ignored. Anything else, including an empty value, raises
+    InputError naming ``badge``.
+    """
+    hint = "Use true to write travel-badge.svg next to the map, or false to skip it."
+    if not isinstance(raw, str) or raw.strip() == "":
+        shown = "empty" if isinstance(raw, str) else repr(raw)
+        raise InputError(f"badge (--badge) is {shown}, which is not true or false. {hint}")
+    value = raw.strip().lower()
+    if value not in {"true", "false"}:
+        raise InputError(f"badge (--badge) is {raw!r}, which is not true or false. {hint}")
+    return value == "true"
 
 
 def parse_palette(raw: object) -> str:
@@ -1511,6 +1548,299 @@ def render_svg(world: World, resolved: ResolvedTravel, theme: str, palette: str,
     _write_atomic(path, _svg_document(world, resolved, theme, palette).encode("utf-8"))
 
 
+# Badge --------------------------------------------------------------------
+# A flat shield, the same height as a shields.io badge. Widths are DejaVu Sans
+# advances at 11px, in hundredths of a user unit, so the file does not depend
+# on the machine that draws it. ``textLength`` locks the glyphs to that width.
+
+BADGE_HEIGHT = 20
+BADGE_PADDING = 6
+BADGE_LABEL = "visited"
+BADGE_FONT_FAMILY = "DejaVu Sans, Verdana, Geneva, sans-serif"
+_BADGE_ADVANCE_DEFAULT = 700
+_BADGE_ADVANCE = {
+    " ": 350,
+    "%": 1050,
+    ".": 338,
+    "-": 400,
+    "·": 338,
+    "0": 700,
+    "1": 700,
+    "2": 688,
+    "3": 700,
+    "4": 688,
+    "5": 688,
+    "6": 700,
+    "7": 700,
+    "8": 700,
+    "9": 700,
+    "A": 750,
+    "B": 750,
+    "C": 762,
+    "D": 850,
+    "E": 700,
+    "F": 638,
+    "G": 850,
+    "H": 838,
+    "I": 325,
+    "J": 325,
+    "K": 725,
+    "L": 612,
+    "M": 950,
+    "N": 825,
+    "O": 862,
+    "P": 662,
+    "Q": 862,
+    "R": 762,
+    "S": 700,
+    "T": 675,
+    "U": 812,
+    "V": 750,
+    "W": 1088,
+    "X": 750,
+    "Y": 675,
+    "Z": 750,
+    "a": 675,
+    "b": 700,
+    "c": 612,
+    "d": 700,
+    "e": 688,
+    "f": 400,
+    "g": 700,
+    "h": 700,
+    "i": 312,
+    "j": 312,
+    "k": 638,
+    "l": 312,
+    "m": 1075,
+    "n": 700,
+    "o": 675,
+    "p": 700,
+    "q": 700,
+    "r": 462,
+    "s": 575,
+    "t": 438,
+    "u": 688,
+    "v": 650,
+    "w": 900,
+    "x": 650,
+    "y": 650,
+    "z": 575,
+}
+
+
+def world_country_total(world: World) -> int:
+    """How many countries the map can draw. Antarctica is already excluded."""
+    total = int(world.countries["adm0_a3"].nunique())
+    if total <= 0:
+        raise TravelError("the map has no countries to compare against.")
+    return total
+
+
+def travel_stats(resolved: ResolvedTravel, world: World) -> TravelStats:
+    """Counts of the places ``resolved`` actually draws."""
+    return TravelStats(
+        countries=len(resolved.countries),
+        world_countries=world_country_total(world),
+        us_states=len(resolved.states),
+        china_provinces=len(resolved.provinces),
+        japan_prefectures=len(resolved.prefectures),
+    )
+
+
+def percent_of_world(countries: int, world_countries: int) -> str:
+    """``countries / world_countries`` as a percent, to the nearest tenth.
+
+    A whole number drops the decimal, so ``0%`` and ``100%`` stay whole.
+    Half a tenth rounds up.
+    """
+    if type(countries) is not int or countries < 0:
+        raise TravelError(f"country count is {countries!r}, which is not a count.")
+    if type(world_countries) is not int or world_countries <= 0:
+        raise TravelError("the map has no countries to compare against.")
+    tenths = (1000 * countries + world_countries // 2) // world_countries
+    whole, frac = divmod(tenths, 10)
+    if frac == 0:
+        return f"{whole}%"
+    return f"{whole}.{frac}%"
+
+
+def _count_phrase(count: int, singular: str, plural: str) -> str:
+    noun = singular if count == 1 else plural
+    return f"{count} {noun}"
+
+
+def _check_stats(stats: TravelStats) -> None:
+    fields = (
+        ("countries", stats.countries),
+        ("world_countries", stats.world_countries),
+        ("us_states", stats.us_states),
+        ("china_provinces", stats.china_provinces),
+        ("japan_prefectures", stats.japan_prefectures),
+    )
+    for name, value in fields:
+        if type(value) is not int or value < 0:
+            raise TravelError(f"{name} count is {value!r}, which is not a count.")
+    if stats.world_countries == 0:
+        raise TravelError("the map has no countries to compare against.")
+
+
+def badge_parts(stats: TravelStats) -> tuple[str, ...]:
+    """The visible badge phrases, in order.
+
+    China and Japan are included only when those units are drawn. US states
+    stay even at zero, so a country-only map still shows that count.
+    """
+    _check_stats(stats)
+    parts = [
+        _count_phrase(stats.countries, "country", "countries"),
+        f"{percent_of_world(stats.countries, stats.world_countries)} of world",
+        _count_phrase(stats.us_states, "US state", "US states"),
+    ]
+    if stats.china_provinces:
+        parts.append(_count_phrase(stats.china_provinces, "China province", "China provinces"))
+    if stats.japan_prefectures:
+        parts.append(_count_phrase(stats.japan_prefectures, "Japan prefecture", "Japan prefectures"))
+    return tuple(parts)
+
+
+def badge_message(stats: TravelStats) -> str:
+    """The single line drawn on the badge."""
+    return " · ".join(badge_parts(stats))
+
+
+def badge_title(stats: TravelStats) -> str:
+    """Accessible name. The percent names the country total it was divided by."""
+    parts = list(badge_parts(stats))
+    percent = percent_of_world(stats.countries, stats.world_countries)
+    parts[1] = f"{percent} of {stats.world_countries} world countries"
+    return "Travel footprint: " + ", ".join(parts)
+
+
+def _xml_text(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _xml_attr(text: str) -> str:
+    return _xml_text(text).replace('"', "&quot;")
+
+
+def _advance(text: str) -> int:
+    """Text width in hundredths of an SVG user unit."""
+    return sum(_BADGE_ADVANCE.get(char, _BADGE_ADVANCE_DEFAULT) for char in text)
+
+
+def _segment_width(advance: int) -> int:
+    """Pixel width of one badge segment, including horizontal padding."""
+    return (advance + 2 * BADGE_PADDING * 100 + 99) // 100
+
+
+def badge_colors(palette: str) -> dict[str, str]:
+    """Shield colors for a concrete palette.
+
+    The value side uses that palette's dark-theme visited color. The badge
+    has its own background, so it does not switch with the light map. Default
+    and Halloween put white text on the visited color. Halloween keeps the
+    yellow dot color on the dark label. Christmas uses the red fill, the
+    green stripe, and the cream dot.
+    """
+    if palette not in PALETTES:
+        raise TravelError(f"unknown palette {palette!r}")
+    ink = PALETTES[palette]["dark"]
+    if palette == "christmas":
+        return {
+            "label_bg": ink["stripe"],
+            "label_fg": ink["dot"],
+            "value_bg": ink["visited"],
+            "value_fg": ink["dot"],
+        }
+    if palette == "halloween":
+        return {
+            "label_bg": THEMES["dark"]["background"],
+            "label_fg": ink["dot"],
+            "value_bg": ink["visited"],
+            "value_fg": "#ffffff",
+        }
+    return {
+        "label_bg": THEMES["dark"]["background"],
+        "label_fg": "#ffffff",
+        "value_bg": ink["visited"],
+        "value_fg": ink["dot"],
+    }
+
+
+def _badge_text(x: float, y: int, fill: str, advance: int, content: str, part: str, *, shadow: bool) -> str:
+    opacity = ' fill-opacity="0.3"' if shadow else ""
+    return (
+        f'    <text data-part="{part}" x="{_num(x)}" y="{y}" fill="{fill}"{opacity} '
+        f'textLength="{_num(advance / 100)}" lengthAdjust="spacing">{_xml_text(content)}</text>'
+    )
+
+
+def badge_document(stats: TravelStats, palette: str) -> str:
+    """One self-contained shield. No images, fonts, or network URLs."""
+    colors = badge_colors(palette)
+    message = badge_message(stats)
+    title = badge_title(stats)
+    label_advance = _advance(BADGE_LABEL)
+    value_advance = _advance(message)
+    label_width = _segment_width(label_advance)
+    value_width = _segment_width(value_advance)
+    total = label_width + value_width
+    label_x = label_width / 2
+    value_x = label_width + value_width / 2
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="{BADGE_HEIGHT}" '
+            f'viewBox="0 0 {total} {BADGE_HEIGHT}" role="img" aria-label="{_xml_attr(title)}">'
+        ),
+        f"  <title>{_xml_text(title)}</title>",
+        "  <defs>",
+        '    <linearGradient id="travel-badge-shine" x2="0" y2="100%">',
+        '      <stop offset="0" stop-color="#ffffff" stop-opacity="0.1"/>',
+        '      <stop offset="1" stop-color="#ffffff" stop-opacity="0.1"/>',
+        "    </linearGradient>",
+        '    <clipPath id="travel-badge-round">',
+        f'      <rect width="{total}" height="{BADGE_HEIGHT}" rx="3"/>',
+        "    </clipPath>",
+        "  </defs>",
+        '  <g clip-path="url(#travel-badge-round)">',
+        (
+            f'    <rect data-part="label-bg" width="{label_width}" height="{BADGE_HEIGHT}" '
+            f'fill="{colors["label_bg"]}"/>'
+        ),
+        (
+            f'    <rect data-part="value-bg" x="{label_width}" width="{value_width}" '
+            f'height="{BADGE_HEIGHT}" fill="{colors["value_bg"]}"/>'
+        ),
+        (
+            f'    <rect data-part="shine" width="{total}" height="{BADGE_HEIGHT}" '
+            'fill="url(#travel-badge-shine)"/>'
+        ),
+        "  </g>",
+        (
+            f'  <g aria-hidden="true" text-anchor="middle" font-family="{BADGE_FONT_FAMILY}" '
+            f'font-size="11">'
+        ),
+        _badge_text(label_x, 15, "#010101", label_advance, BADGE_LABEL, "label-shadow", shadow=True),
+        _badge_text(label_x, 14, colors["label_fg"], label_advance, BADGE_LABEL, "label", shadow=False),
+        _badge_text(value_x, 15, "#010101", value_advance, message, "value-shadow", shadow=True),
+        _badge_text(value_x, 14, colors["value_fg"], value_advance, message, "value", shadow=False),
+        "  </g>",
+        "</svg>",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_badge(stats: TravelStats, palette: str, path: Path) -> None:
+    """Write ``travel-badge.svg``. ``palette`` must be concrete, not ``auto``."""
+    if palette not in PALETTES:
+        raise TravelError(f"unknown palette {palette!r}")
+    _write_atomic(path, badge_document(stats, palette).encode("utf-8"))
+
+
 def render_maps(
     config: TravelConfig,
     out_dir: Path,
@@ -1519,14 +1849,26 @@ def render_maps(
     *,
     world: World | None = None,
     image_format: str = "png",
+    badge: bool = True,
 ) -> RenderResult:
     """Resolve ``config`` and write the requested maps. Nothing is written on failure.
 
     ``image_format`` is ``png`` (the default), ``svg``, or ``both``. ``png`` writes
     the dark and light PNGs. ``svg`` writes the dark and light SVGs. ``both`` writes
     all four. The default keeps the PNG-only behavior.
+
+    ``badge`` writes ``travel-badge.svg`` beside those files when true, which is
+    the default. False writes no badge and does not change the map files. The
+    badge counts countries, the percent of world countries the map can draw,
+    and US states. China provinces and Japan prefectures are included when
+    those units are drawn. Colors follow the concrete palette.
     """
     image_format = parse_format(image_format)
+    if type(badge) is not bool:
+        raise InputError(
+            f"badge is {badge!r}, which is not true or false. "
+            "Use true to write travel-badge.svg next to the map, or false to skip it."
+        )
     if out_dir.exists() and not out_dir.is_dir():
         raise InputError(
             f"output (--out) is {str(out_dir)!r}, which is a file. Pass a directory, for example dist."
@@ -1539,6 +1881,7 @@ def render_maps(
     light = out_dir / LIGHT_FILENAME
     dark_svg = out_dir / DARK_SVG_FILENAME
     light_svg = out_dir / LIGHT_SVG_FILENAME
+    badge_path = out_dir / BADGE_FILENAME
     want_png = image_format in {"png", "both"}
     want_svg = image_format in {"svg", "both"}
     written: list[Path] = []
@@ -1553,6 +1896,9 @@ def render_maps(
             written.append(dark_svg)
             render_svg(world, resolved, "light", concrete, light_svg)
             written.append(light_svg)
+        if badge:
+            render_badge(travel_stats(resolved, world), concrete, badge_path)
+            written.append(badge_path)
     except Exception:
         for path in written:
             path.unlink(missing_ok=True)
@@ -1564,4 +1910,5 @@ def render_maps(
         resolved=resolved,
         dark_svg_path=dark_svg if want_svg else None,
         light_svg_path=light_svg if want_svg else None,
+        badge_path=badge_path if badge else None,
     )
