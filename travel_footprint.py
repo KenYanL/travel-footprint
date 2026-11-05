@@ -38,7 +38,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="travel.yml",
         help=(
             "YAML file of countries, us_states, china_provinces, japan_prefectures, "
-            "and cities. Default: travel.yml."
+            "cities, planned, and planned_states. Default: travel.yml."
         ),
     )
     parser.add_argument(

@@ -128,6 +128,8 @@ def test_svg_colors_projection_and_stripes(world, tmp_path: Path, palette, theme
     assert found["land"].get("fill") == chrome["land"]
     assert found["visited"].get("fill") == visited
     assert _layers(root) == {"countries"}
+    assert "<animate" not in raw
+    assert "planned-states" not in found
 
     circles = [element for element in root.iter(f"{NS}circle")]
     assert len(circles) == 4
@@ -263,8 +265,111 @@ def test_png_bytes_stay_the_same_when_svg_is_added(world, tmp_path: Path) -> Non
 
 def test_empty_config_is_land_without_visited_shapes(world, tmp_path: Path) -> None:
     result = _render(world, tmp_path / "empty", "{}\n")
-    _, root = _parse(result.dark_svg_path)
+    raw, root = _parse(result.dark_svg_path)
     assert _layers(root) == set()
     assert "visited" not in _by_id(root)
     assert _by_id(root)["land"].get("fill") == "#30363d"
     assert list(root.iter(f"{NS}circle")) == []
+    assert "<animate" not in raw
+    assert "planned-states" not in raw
+
+
+PLANNED = (
+    "us_states:\n  - CO\n"
+    "cities:\n  - name: Sample Harbor\n    lat: 39.0\n    lon: -105.5\n"
+    "planned_states:\n  - OR\n"
+    "planned:\n  - name: Sample Cove\n    lat: 44.0\n    lon: -120.5\n"
+)
+
+
+def _animates(element: ET.Element) -> list[ET.Element]:
+    return [child for child in element if child.tag == f"{NS}animate"]
+
+
+@pytest.mark.parametrize(
+    ("palette", "theme", "accent"),
+    [
+        ("default", "dark", "#3fb950"),
+        ("default", "light", "#1a7f37"),
+        ("halloween", "dark", "#c46212"),
+        ("halloween", "light", "#c46212"),
+        ("christmas", "dark", "#bc4749"),
+        ("christmas", "light", "#bc4749"),
+    ],
+)
+def test_planned_svg_pulses_and_stays_out_of_visited(
+    world, tmp_path: Path, palette: str, theme: str, accent: str
+) -> None:
+    result = _render(world, tmp_path / f"{palette}-{theme}", PLANNED, palette)
+    assert result.resolved.countries == ()
+    assert result.resolved.states == ("Colorado",)
+    assert result.resolved.planned_states == ("Oregon",)
+    assert [city.name for city in result.resolved.cities] == ["Sample Harbor"]
+    assert [city.name for city in result.resolved.planned_cities] == ["Sample Cove"]
+    assert "Oregon" not in result.resolved.states
+
+    paths = {"dark": result.dark_svg_path, "light": result.light_svg_path}
+    raw, root = _parse(paths[theme])
+    found = _by_id(root)
+    assert _layers(root) == {"states"}
+    assert list(found["visited"].iter(f"{NS}animate")) == []
+
+    states = found["planned-states"]
+    assert states.get("fill") == accent
+    assert states.get("opacity") == "0.4"
+    pulse = _animates(states)
+    assert len(pulse) == 1
+    assert pulse[0].get("attributeName") == "opacity"
+    assert pulse[0].get("values") == "0.25;0.6;0.25"
+    assert pulse[0].get("dur") == "1.8s"
+    assert pulse[0].get("repeatCount") == "indefinite"
+    planned_path = next(element.get("d") for element in states if element.tag == f"{NS}path")
+    visited_path = next(element.get("d") for element in found["visited"] if element.get("d"))
+    assert planned_path != visited_path
+
+    edge = found["planned-states-edge"]
+    assert edge.get("fill") == "none"
+    assert edge.get("stroke") == accent
+    assert edge.get("stroke-dasharray")
+    assert next(element.get("d") for element in edge if element.tag == f"{NS}path") == planned_path
+
+    if "visited-clip" in found:
+        clip = next(element for element in found["visited-clip"] if element.tag == f"{NS}path")
+        assert clip.get("d") == visited_path
+        assert planned_path not in clip.get("d")
+    else:
+        assert palette != "christmas"
+
+    city = found["planned-Sample-Cove"]
+    ring, dot = [element for element in city if element.tag == f"{NS}circle"]
+    cx, cy = _geo_to_svg(-120.5, 44.0)
+    assert float(ring.get("cx")) == pytest.approx(cx, abs=0.02)
+    assert float(ring.get("cy")) == pytest.approx(cy, abs=0.02)
+    assert ring.get("r") == "2.5"
+    assert ring.get("fill") == "none"
+    assert ring.get("stroke") == accent
+    assert ring.get("stroke-width") == "1.2"
+    assert [
+        (item.get("attributeName"), item.get("values"), item.get("dur"), item.get("repeatCount"))
+        for item in _animates(ring)
+    ] == [
+        ("r", "2.5;9", "1.8s", "indefinite"),
+        ("opacity", "1;0", "1.8s", "indefinite"),
+    ]
+    assert dot.get("r") == "2.6"
+    assert dot.get("fill") == accent
+    assert [
+        (item.get("attributeName"), item.get("values"), item.get("dur"), item.get("repeatCount"))
+        for item in _animates(dot)
+    ] == [("opacity", "1;.45;1", "1.8s", "indefinite")]
+    assert "<animate" in raw
+
+    oregon = world.states[world.states["name"] == "Oregon"].geometry.iloc[0]
+    minx, miny, maxx, maxy = oregon.bounds
+    left, top = _geo_to_svg(minx, maxy)
+    right, bottom = _geo_to_svg(maxx, miny)
+    path_left, path_top, path_right, path_bottom = _path_bbox(planned_path)
+    assert path_left == pytest.approx(left, abs=0.05)
+    assert path_top == pytest.approx(top, abs=0.05)
+    assert path_right == pytest.approx(right, abs=0.05)
+    assert path_bottom == pytest.approx(bottom, abs=0.05)

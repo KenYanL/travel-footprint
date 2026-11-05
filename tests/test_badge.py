@@ -19,6 +19,7 @@ from footprint import (
     parse_config,
     percent_of_world,
     render_maps,
+    travel_stats,
     world_country_total,
 )
 from travel_footprint import main
@@ -198,6 +199,72 @@ def test_badge_false_skips_the_file_and_keeps_the_map_bytes(world, tmp_path: Pat
     assert off.light_svg_path.read_bytes() == on.light_svg_path.read_bytes()
 
 
+def test_planned_places_are_left_out_of_badge_stats(world, tmp_path: Path) -> None:
+    """A planned state and city are drawn. The badge stays on the visited counts."""
+    visited_text = (
+        "countries:\n  - NZ\n"
+        "us_states:\n  - WY\n"
+        "china_provinces:\n  - Sichuan\n"
+        "japan_prefectures:\n  - Kyoto\n"
+        "cities:\n  - name: Sample Harbor\n    lat: 64.15\n    lon: -21.95\n"
+    )
+    planned_text = (
+        visited_text
+        + "planned_states:\n  - OR\n"
+        + "planned:\n  - name: Sample Cove\n    lat: 44.0\n    lon: -120.5\n"
+    )
+    visited = render_maps(
+        parse_config(visited_text, path="visited.yml"),
+        tmp_path / "visited",
+        "default",
+        DAY,
+        world=world,
+        image_format="both",
+        badge=True,
+    )
+    planned = render_maps(
+        parse_config(planned_text, path="planned.yml"),
+        tmp_path / "planned",
+        "default",
+        DAY,
+        world=world,
+        image_format="both",
+        badge=True,
+    )
+    assert planned.resolved.planned_states == ("Oregon",)
+    assert [city.name for city in planned.resolved.planned_cities] == ["Sample Cove"]
+    assert planned.resolved.states == visited.resolved.states == ("Wyoming",)
+    assert planned.resolved.countries == visited.resolved.countries
+    assert planned.resolved.provinces == visited.resolved.provinces
+    assert planned.resolved.prefectures == visited.resolved.prefectures
+    assert "Sample Cove" not in {city.name for city in planned.resolved.cities}
+    visited_stats = travel_stats(visited.resolved, world)
+    planned_stats = travel_stats(planned.resolved, world)
+    assert planned_stats == visited_stats
+    assert planned_stats == TravelStats(
+        countries=1,
+        world_countries=world_country_total(world),
+        us_states=1,
+        china_provinces=1,
+        japan_prefectures=1,
+    )
+    assert planned.badge_path.read_bytes() == visited.badge_path.read_bytes()
+    badge = planned.badge_path.read_text(encoding="utf-8")
+    assert "1 country" in badge
+    assert "1 US state" in badge
+    assert "2 US states" not in badge
+    assert "1 China province" in badge
+    assert "1 Japan prefecture" in badge
+    assert "Oregon" not in badge
+    assert "Sample Cove" not in badge
+    planned_svg = planned.dark_svg_path.read_text(encoding="utf-8")
+    visited_svg = visited.dark_svg_path.read_text(encoding="utf-8")
+    assert 'id="planned-states"' in planned_svg
+    assert 'id="planned-Sample-Cove"' in planned_svg
+    assert "planned-states" not in visited_svg
+    assert planned.dark_path.read_bytes() != visited.dark_path.read_bytes()
+
+
 def test_whole_country_drops_provinces_and_counts_no_states(world, tmp_path: Path) -> None:
     result = render_maps(
         parse_config("countries:\n  - US\n  - CN\nus_states:\n  - WY\nchina_provinces:\n  - Sichuan\n"),
@@ -273,8 +340,14 @@ def test_example_badge_matches_the_sample_config(world, tmp_path: Path) -> None:
     resolved = resolve_travel(config, world)
     stats = travel_stats(resolved, world)
     document = badge_document(stats, "default")
+    assert resolved.planned_states == ("Oregon",)
+    assert [city.name for city in resolved.planned_cities] == ["Sample Cove"]
+    assert stats.us_states == len(resolved.states) == 2
     assert "3 countries" in document
     assert "2 US states" in document
+    assert "3 US states" not in document
+    assert "Oregon" not in document
+    assert "Sample Cove" not in document
     assert "2 China provinces" in document
     assert "2 Japan prefectures" in document
     assert percent_of_world(3, stats.world_countries) in document

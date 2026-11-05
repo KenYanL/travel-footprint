@@ -13,9 +13,12 @@ inputs:
   config:
     description: >-
       Workspace path of the YAML file listing countries, us_states,
-      china_provinces, japan_prefectures, and cities. ISO codes or English
-      names for countries, state names or USPS codes, province and prefecture
-      names or ISO 3166-2 codes, and city name plus lat/lon.
+      china_provinces, japan_prefectures, cities, planned, and planned_states.
+      ISO codes or English names for countries, state names or USPS codes,
+      province and prefecture names or ISO 3166-2 codes, and city name plus
+      lat/lon. planned cities use that same shape. planned_states are US
+      state names or USPS codes. Planned places are drawn and are not
+      counted as visited. Their pulse is SVG-only.
     required: false
     default: travel.yml
   output:
@@ -45,8 +48,9 @@ inputs:
       Write travel-badge.svg next to the map. true (the default) writes a
       self-contained SVG badge of countries visited, the percent of world
       countries, and US states, plus China provinces and Japan prefectures
-      when those units are drawn. false skips the badge and leaves the map
-      files unchanged. An empty value is rejected.
+      when those units are drawn. Planned states and planned cities are not
+      included. false skips the badge and leaves the map files unchanged.
+      An empty value is rejected.
     required: false
     default: "true"
 
