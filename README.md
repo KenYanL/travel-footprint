@@ -195,15 +195,18 @@ Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution
 
 Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Planned states and cities are painted after that, in the accent color, and they are not part of the visited shapes. Each PNG is 1200×474. The SVG uses that same frame as its viewBox, the same projection, and the same fills, and it is the only output that runs the planned pulse.
 
-Countries and the 1:50m admin-1 file (US states and Chinese provinces) are the unmodified Natural Earth zips in [`data/`](data/README.md), public domain, checked against `data/SHA256SUMS`. Japanese prefectures are a public-domain extract of Natural Earth 1:10m admin-1, because the 1:50m admin-1 theme does not include Japan. If a 1:50m zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing. The Japan extract ships with the repository.
+Countries and the 1:50m admin-1 file (US states and Chinese provinces) are the unmodified Natural Earth zips in [`travel_footprint/data/`](travel_footprint/data/README.md), public domain, checked against `travel_footprint/data/SHA256SUMS`. Japanese prefectures are a public-domain extract of Natural Earth 1:10m admin-1, because the 1:50m admin-1 theme does not include Japan. If a 1:50m zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing. The Japan extract ships with the repository. An installed copy finds those same files in `data/` next to the library.
 
 ## Develop
 
 Python 3.10 or newer.
 
+This project is not published on PyPI. From a clone, `python3 -m pip install .` (or `python3 -m pip install -e .` for an editable install) provides the `travel-footprint` command. `travel-footprint --help` uses the same flags as `python3 travel_footprint.py`. The GitHub Action does not install the package; it still runs `travel_footprint.py`.
+
 ```bash
 python3 -m pip install -r requirements.txt pytest
 python3 -m pytest
+python3 -m pip install .
 python3 travel_footprint.py --config travel.example.yml --out dist --palette default
 python3 travel_footprint.py --config travel.yml --out dist --palette auto --date 2026-12-25
 python3 travel_footprint.py --config travel.example.yml --out dist --format both
@@ -213,10 +216,10 @@ python3 scripts/make_demo.py
 
 `--palette` is the same choice as the action input. `--date` is the UTC day used when the palette is `auto`. Halloween is 31 October. Christmas is 24, 25, and 26 December. `--format` is `png` (the default), `svg`, or `both`. `--badge` is `true` (the default) or `false`. `true` writes `travel-badge.svg` next to the map.
 
-[`.github/workflows/test.yml`](.github/workflows/test.yml) runs the tests on pull requests and on pushes to `main`.
+[`.github/workflows/test.yml`](.github/workflows/test.yml) runs the tests, and checks that `python -m build` produces an sdist and a wheel, on pull requests and on pushes to `main`. Nothing is uploaded.
 
 ## License
 
 [MIT](LICENSE).
 
-Map data is public domain [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), version 5.1.1, including the Japan prefecture extract. See [`data/README.md`](data/README.md).
+Map data is public domain [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), version 5.1.1, including the Japan prefecture extract. See [`travel_footprint/data/README.md`](travel_footprint/data/README.md).

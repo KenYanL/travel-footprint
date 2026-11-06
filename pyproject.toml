@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "travel-footprint"
+version = "0.1.0"
+description = "Render a Pacific-centred world map of visited countries, US states, Chinese provinces, Japanese prefectures, and cities."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "geopandas==1.1.1",
+    "matplotlib==3.10.7",
+    "PyYAML==6.0.3",
+    "shapely==2.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/KenYanL/travel-footprint"
+Source = "https://github.com/KenYanL/travel-footprint"
+Changelog = "https://github.com/KenYanL/travel-footprint/blob/main/CHANGELOG.md"
+
+[project.scripts]
+travel-footprint = "travel_footprint:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["travel_footprint*"]
+
+[tool.setuptools.package-data]
+travel_footprint = ["data/*"]

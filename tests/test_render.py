@@ -26,8 +26,6 @@ from footprint import (
 )
 from shapely.geometry import box
 
-ROOT = Path(__file__).resolve().parents[1]
-
 
 @pytest.fixture(scope="module")
 def world():
@@ -405,12 +403,12 @@ def test_christmas_stripes_cover_a_province(world, tmp_path: Path) -> None:
 
 
 def test_vendored_zips_match_checksums() -> None:
-    from footprint import DATASET_NAMES
+    from footprint import DATASET_NAMES, VENDOR_DIR
 
     sums = load_checksums()
     for name in DATASET_NAMES:
         path = locate_dataset(name)
-        assert path == ROOT / "data" / name
+        assert path == VENDOR_DIR / name
         verify_sha256(path, sums[name], name)
 
 
