@@ -147,3 +147,5 @@ def test_workflow_runs_pytest_on_pull_requests() -> None:
     text = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
     assert "pull_request" in text
     assert "pytest" in text
+    assert "python -m build" in text
+    assert "twine check" in text

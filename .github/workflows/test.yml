@@ -22,3 +22,34 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt pytest==8.4.2
       - name: Run tests
         run: python -m pytest
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check build twine
+          python -m build
+          python -m twine check dist/*
+          mapfile -t wheels < <(printf '%s\n' dist/*.whl)
+          mapfile -t sdists < <(printf '%s\n' dist/*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test -f "${wheels[0]}"
+          test -f "${sdists[0]}"
+          python -c 'import sys,tarfile,zipfile; needed=("data/SHA256SUMS","data/README.md","data/ne_50m_admin_0_countries.zip","data/ne_50m_admin_1_states_provinces.zip","data/ne_10m_admin_1_japan_prefectures.zip"); wheel=zipfile.ZipFile(sys.argv[1]).namelist(); sdist=tarfile.open(sys.argv[2]).getnames(); missing=[f"{kind} {item}" for kind,names in (("wheel",wheel),("sdist",sdist)) for item in needed if not any(name.endswith(item) for name in names)]; print("missing " + ", ".join(missing) if missing else "sdist and wheel include Natural Earth data"); raise SystemExit(1 if missing else 0)' "${wheels[0]}" "${sdists[0]}"
+      - name: Install the wheel and check the console script
+        run: |
+          set -euo pipefail
+          venv="${RUNNER_TEMP}/travel-footprint-pkg"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check --no-deps dist/*.whl
+          cd "${RUNNER_TEMP}"
+          "$venv/bin/travel-footprint" --help >/tmp/travel-footprint-help.txt
+          grep -q "usage: travel-footprint" /tmp/travel-footprint-help.txt
+          "$venv/bin/python" -c 'import importlib.util; from pathlib import Path; spec=importlib.util.find_spec("travel_footprint"); origin=getattr(spec,"origin",None); data=Path(origin).resolve().parent/"data" if origin else None; required=("SHA256SUMS","README.md","ne_50m_admin_0_countries.zip","ne_50m_admin_1_states_provinces.zip","ne_10m_admin_1_japan_prefectures.zip"); missing=[name for name in required if data is None or not (data/name).is_file()]; print(f"installed package is missing {missing} under {data}" if missing else f"installed data at {data}"); raise SystemExit(1 if missing else 0)'
