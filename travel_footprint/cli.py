@@ -60,7 +60,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--palette",
         default="default",
-        help="default, halloween, christmas, or auto. Default: default.",
+        help="default, halloween, christmas, newyear, or auto. Default: default.",
     )
     parser.add_argument(
         "--format",

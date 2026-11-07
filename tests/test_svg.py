@@ -102,6 +102,8 @@ def test_svg_frame_matches_the_png_pixel_grid() -> None:
         ("halloween", "light", "#c46212", "#1f2328", None),
         ("christmas", "dark", "#bc4749", "#f2e8cf", "#6a994e"),
         ("christmas", "light", "#bc4749", "#f2e8cf", "#6a994e"),
+        ("newyear", "dark", "#cc6f00", "#f9e6a8", "#4d2a00"),
+        ("newyear", "light", "#cc6f00", "#f9e6a8", "#4d2a00"),
     ],
 )
 def test_svg_colors_projection_and_stripes(world, tmp_path: Path, palette, theme, visited, dot, stripe) -> None:
@@ -147,12 +149,15 @@ def test_svg_colors_projection_and_stripes(world, tmp_path: Path, palette, theme
         assert mark.get("fill") == dot
         assert mark.get("stroke") == visited
 
-    pattern = found.get("christmas-stripes")
+    pattern_id = f"{palette}-stripes"
+    pattern = found.get(pattern_id)
     if stripe is None:
         assert pattern is None
         assert "clipPath" not in {element.tag.removeprefix(NS) for element in root.iter()}
         assert "#6a994e" not in raw
         assert "#bc4749" not in raw
+        assert "#4d2a00" not in raw
+        assert "#cc6f00" not in raw
         assert "<pattern" not in raw
         return
 
@@ -162,7 +167,7 @@ def test_svg_colors_projection_and_stripes(world, tmp_path: Path, palette, theme
     assert pattern.get("patternUnits") == "userSpaceOnUse"
     assert found["stripes"].get("clip-path") == "url(#visited-clip)"
     rect = next(element for element in found["stripes"] if element.tag == f"{NS}rect")
-    assert rect.get("fill") == "url(#christmas-stripes)"
+    assert rect.get("fill") == f"url(#{pattern_id})"
     clip = next(element for element in found["visited-clip"] if element.tag == f"{NS}path")
     assert clip.get("clip-rule") == "evenodd"
     visited_paths = [element.get("d") for element in found["visited"] if element.get("d")]
@@ -295,6 +300,8 @@ def _animates(element: ET.Element) -> list[ET.Element]:
         ("halloween", "light", "#c46212"),
         ("christmas", "dark", "#bc4749"),
         ("christmas", "light", "#bc4749"),
+        ("newyear", "dark", "#cc6f00"),
+        ("newyear", "light", "#cc6f00"),
     ],
 )
 def test_planned_svg_pulses_and_stays_out_of_visited(
@@ -338,7 +345,7 @@ def test_planned_svg_pulses_and_stays_out_of_visited(
         assert clip.get("d") == visited_path
         assert planned_path not in clip.get("d")
     else:
-        assert palette != "christmas"
+        assert palette not in {"christmas", "newyear"}
 
     city = found["planned-Sample-Cove"]
     ring, dot = [element for element in city if element.tag == f"{NS}circle"]

@@ -117,8 +117,8 @@ THEMES: dict[str, dict[str, str]] = {
 # ``visited`` fills a whole country, or a listed subdivision and nothing else.
 # ``stripe``, when set, is painted as diagonal bands over that fill.
 # ``dot`` is the city marker. Light dots are darker where a light color would
-# disappear on white; Christmas keeps the cream dot on both themes because the
-# dot sits on the red and green bands.
+# disappear on white; Christmas and New Year keep the cream/gold dot on both
+# themes because the dot sits on the striped bands.
 PALETTES: dict[str, dict[str, dict[str, str]]] = {
     "default": {
         "dark": {"visited": "#3fb950", "dot": "#ffffff"},
@@ -139,19 +139,29 @@ PALETTES: dict[str, dict[str, dict[str, str]]] = {
         "dark": {"visited": "#bc4749", "stripe": "#6a994e", "dot": "#f2e8cf"},
         "light": {"visited": "#bc4749", "stripe": "#6a994e", "dot": "#f2e8cf"},
     },
+    "newyear": {
+        # Color Hunt gold gradient (same source as contrib-tetris newyear)
+        # https://colorhunt.co/palette/f9e6a8f2a900cc6f004d2a00
+        # f9e6a8, f2a900, cc6f00, 4d2a00.
+        # Visited shapes are amber with dark-brown diagonal stripes, not a solid fill.
+        # #f2a900 is unused in the map ink the way christmas drops some Coolors colors.
+        "dark": {"visited": "#cc6f00", "stripe": "#4d2a00", "dot": "#f9e6a8"},
+        "light": {"visited": "#cc6f00", "stripe": "#4d2a00", "dot": "#f9e6a8"},
+    },
 }
 
-# Christmas stripes: 8px period at the output resolution, half of each period
+# Holiday stripes: 8px period at the output resolution, half of each period
 # in the stripe color. Supersampling keeps the edges even instead of hatched.
 STRIPE_PERIOD = 8
 STRIPE_FRACTION = 0.5
 STRIPE_SUPERSAMPLE = 4
 
-PALETTE_NAMES = ("default", "halloween", "christmas", "auto")
+PALETTE_NAMES = ("default", "halloween", "christmas", "newyear", "auto")
 FORMAT_NAMES = ("png", "svg", "both")
 
 # ``auto`` follows the same UTC days as contrib-tetris.
 AUTO_HOLIDAYS: tuple[tuple[str, tuple[tuple[int, int], ...]], ...] = (
+    ("newyear", ((1, 1),)),
     ("halloween", ((10, 31),)),
     ("christmas", ((12, 24), (12, 25), (12, 26))),
 )
@@ -309,9 +319,10 @@ def _planned_marker_id(name: str) -> str:
 def resolve_palette(name: str, today: date) -> str:
     """Return the concrete palette for ``name`` on ``today``.
 
-    ``default``, ``halloween``, and ``christmas`` are returned as given.
-    ``auto`` uses halloween on 31 October, christmas on 24-26 December, and
-    ``default`` on every other day. ``today`` is the calendar day to test.
+    ``default``, ``halloween``, ``christmas``, and ``newyear`` are returned as given.
+    ``auto`` uses newyear on 1 January, halloween on 31 October, christmas on
+    24-26 December, and ``default`` on every other day. ``today`` is the calendar
+    day to test.
     This does not read the clock; pass the current UTC date when the caller
     means now.
     """
@@ -361,8 +372,9 @@ def parse_palette(raw: object) -> str:
     """Return a palette name, or raise InputError naming ``palette``."""
     hint = (
         "Use default for the green map, halloween for the orange map, "
-        "christmas for the Coolors Christmas map, or auto to use halloween "
-        "on 31 October (UTC), christmas on 24-26 December (UTC), and default "
+        "christmas for the Coolors Christmas map, newyear for the Color Hunt "
+        "gold map, or auto to use newyear on 1 January (UTC), halloween on "
+        "31 October (UTC), christmas on 24-26 December (UTC), and default "
         "every other day."
     )
     if not isinstance(raw, str) or raw.strip() == "":
@@ -1564,7 +1576,7 @@ def _svg_document(world: World, resolved: ResolvedTravel, theme: str, palette: s
     if stripe and layers:
         lines.append("  <defs>")
         lines.append(
-            '    <pattern id="christmas-stripes" patternUnits="userSpaceOnUse" '
+            f'    <pattern id="{palette}-stripes" patternUnits="userSpaceOnUse" '
             'patternContentUnits="userSpaceOnUse" x="0" y="0" '
             f'width="{STRIPE_PERIOD}" height="{STRIPE_PERIOD}">'
         )
@@ -1595,7 +1607,7 @@ def _svg_document(world: World, resolved: ResolvedTravel, theme: str, palette: s
             lines.append("  </g>")
             lines.append('  <g id="stripes" clip-path="url(#visited-clip)">')
             lines.append(
-                f'    <rect width="{SVG_WIDTH}" height="{SVG_HEIGHT}" fill="url(#christmas-stripes)"/>'
+                f'    <rect width="{SVG_WIDTH}" height="{SVG_HEIGHT}" fill="url(#{palette}-stripes)"/>'
             )
             lines.append("  </g>")
             lines.append(
@@ -1944,12 +1956,13 @@ def badge_colors(palette: str) -> dict[str, str]:
     has its own background, so it does not switch with the light map. Default
     and Halloween put white text on the visited color. Halloween keeps the
     yellow dot color on the dark label. Christmas uses the red fill, the
-    green stripe, and the cream dot.
+    green stripe, and the cream dot. New Year uses the amber fill, the dark
+    brown stripe, and the pale gold dot.
     """
     if palette not in PALETTES:
         raise TravelError(f"unknown palette {palette!r}")
     ink = PALETTES[palette]["dark"]
-    if palette == "christmas":
+    if palette in ("christmas", "newyear"):
         return {
             "label_bg": ink["stripe"],
             "label_fg": ink["dot"],

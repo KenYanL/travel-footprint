@@ -72,7 +72,12 @@ def test_demo_spans_continents_and_skips_disputed_places() -> None:
 
 
 def test_committed_demo_svg_pulses_planned_places() -> None:
-    for name in ("travel-map.svg", "travel-map-light.svg", "travel-map-christmas.svg"):
+    for name in (
+        "travel-map.svg",
+        "travel-map-light.svg",
+        "travel-map-christmas.svg",
+        "travel-map-newyear.svg",
+    ):
         text = (ROOT / "demo" / name).read_text(encoding="utf-8")
         assert 'id="planned-states"' in text
         assert 'id="planned-Sample-Cove"' in text
@@ -90,9 +95,11 @@ def test_demo_images_are_committed() -> None:
         "travel-map.png",
         "travel-map-light.png",
         "travel-map-christmas.png",
+        "travel-map-newyear.png",
         "travel-map.svg",
         "travel-map-light.svg",
         "travel-map-christmas.svg",
+        "travel-map-newyear.svg",
     ):
         path = demo / name
         assert path.is_file(), name
@@ -121,6 +128,7 @@ def test_committed_demo_svgs_match_the_generator(tmp_path: Path) -> None:
         "travel-map.svg",
         "travel-map-light.svg",
         "travel-map-christmas.svg",
+        "travel-map-newyear.svg",
         "travel-badge.svg",
     ):
         assert (tmp_path / name).read_bytes() == (ROOT / "demo" / name).read_bytes()

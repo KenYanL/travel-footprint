@@ -12,6 +12,7 @@ from footprint import PALETTES, THEMES, InputError, parse_palette, resolve_palet
 def test_palette_strips_and_lowercases() -> None:
     assert parse_palette(" Halloween ") == "halloween"
     assert parse_palette("Christmas") == "christmas"
+    assert parse_palette("NewYear") == "newyear"
     assert parse_palette("AUTO") == "auto"
     assert parse_palette("default") == "default"
 
@@ -22,6 +23,7 @@ def test_unknown_palette_names_the_choices() -> None:
     message = str(caught.value)
     assert "halloween" in message
     assert "christmas" in message
+    assert "newyear" in message
     assert "auto" in message
 
 
@@ -52,6 +54,16 @@ def test_auto_is_christmas_on_december_24_through_26() -> None:
     assert resolve_palette("christmas", date(2026, 6, 1)) == "christmas"
 
 
+def test_auto_is_newyear_on_january_1() -> None:
+    for year in (2024, 2026, 2028):
+        assert resolve_palette("auto", date(year, 1, 1)) == "newyear"
+        assert resolve_palette("auto", date(year, 12, 31)) == "default"
+        assert resolve_palette("auto", date(year, 1, 2)) == "default"
+        assert resolve_palette("auto", date(year, 10, 31)) == "halloween"
+    assert resolve_palette("newyear", date(2026, 6, 1)) == "newyear"
+    assert resolve_palette("newyear", date(2026, 12, 25)) == "newyear"
+
+
 def test_dark_palette_values_match_the_contract() -> None:
     assert PALETTES["default"]["dark"] == {"visited": "#3fb950", "dot": "#ffffff"}
     assert PALETTES["halloween"]["dark"] == {"visited": "#c46212", "dot": "#e3d04f"}
@@ -59,6 +71,11 @@ def test_dark_palette_values_match_the_contract() -> None:
         "visited": "#bc4749",
         "stripe": "#6a994e",
         "dot": "#f2e8cf",
+    }
+    assert PALETTES["newyear"]["dark"] == {
+        "visited": "#cc6f00",
+        "stripe": "#4d2a00",
+        "dot": "#f9e6a8",
     }
     assert "stripe" not in PALETTES["default"]["dark"]
     assert "stripe" not in PALETTES["halloween"]["dark"]
@@ -71,6 +88,11 @@ def test_light_palette_values_are_the_documented_equivalents() -> None:
         "visited": "#bc4749",
         "stripe": "#6a994e",
         "dot": "#f2e8cf",
+    }
+    assert PALETTES["newyear"]["light"] == {
+        "visited": "#cc6f00",
+        "stripe": "#4d2a00",
+        "dot": "#f9e6a8",
     }
 
 
