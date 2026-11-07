@@ -30,7 +30,8 @@ inputs:
   palette:
     description: >-
       Map colors. default is green on the dark canvas. halloween uses orange
-      and yellow. christmas uses Coolors' popular Christmas palette. auto uses
+      and yellow. christmas uses Coolors' popular Christmas palette. newyear
+      uses Color Hunt's gold gradient. auto uses newyear on 1 January (UTC),
       halloween on 31 October (UTC), christmas on 24-26 December (UTC), and
       default every other day. An empty value is rejected.
     required: false

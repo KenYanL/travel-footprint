@@ -182,6 +182,28 @@ def test_halloween_and_christmas_badges_follow_those_palettes(world, tmp_path: P
     _assert_self_contained(christmas_text)
 
 
+def test_newyear_badge_follows_that_palette(world, tmp_path: Path) -> None:
+    config = parse_config("countries:\n  - NZ\n", path="nz.yml")
+    newyear = render_maps(
+        config,
+        tmp_path / "newyear",
+        "auto",
+        date(2026, 1, 1),
+        world=world,
+        image_format="svg",
+    )
+    assert newyear.palette == "newyear"
+    text, root = _parse(newyear.badge_path)
+    assert _part(root, "label-bg").get("fill") == "#4d2a00"
+    assert _part(root, "value-bg").get("fill") == "#cc6f00"
+    assert _part(root, "value").get("fill") == "#f9e6a8"
+    assert _part(root, "label").get("fill") == "#f9e6a8"
+    assert "#3fb950" not in text
+    assert "#bc4749" not in text
+    assert "#c46212" not in text
+    _assert_self_contained(text)
+
+
 def test_badge_false_skips_the_file_and_keeps_the_map_bytes(world, tmp_path: Path) -> None:
     config = parse_config("countries:\n  - NZ\nus_states:\n  - WY\n", path="nz.yml")
     off = render_maps(

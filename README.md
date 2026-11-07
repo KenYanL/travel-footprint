@@ -12,9 +12,11 @@ A Pacific-centred world map of countries, US states, Chinese provinces, Japanese
 
 *Reusable GitHub Action and Python CLI. One dark map and one light map, from a YAML file you keep in the repo. PNG by default; the same map can be written as SVG. A stats badge is written next to the map unless you turn it off.*
 
-The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It also marks one US state and one city as planned. Those two are drawn, and in the SVG they pulse, but they are not counted as visited and they are not included in the stats badge. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-badge.svg` from that config, `demo/travel-map-christmas.png`, and SVG copies of each map: `demo/travel-map.svg`, `demo/travel-map-light.svg`, and `demo/travel-map-christmas.svg`. In the SVGs the planned state and city pulse; the PNGs keep them static.
+The preview above is fictional. `scripts/make_demo.py` rebuilds it from a fixed random seed: countries spread across every continent, a handful of US states, a few Chinese provinces and Japanese prefectures, and city dots inside those shapes. It also marks one US state and one city as planned. Those two are drawn, and in the SVG they pulse, but they are not counted as visited and they are not included in the stats badge. It is not a real itinerary. Disputed territories, and a fixed list of sensitive countries in that script, are left out. The sample also skips Xinjiang, Tibet, and Inner Mongolia. The same command also writes `demo/travel-badge.svg` from that config, `demo/travel-map-christmas.png`, `demo/travel-map-newyear.png`, and SVG copies of each map: `demo/travel-map.svg`, `demo/travel-map-light.svg`, `demo/travel-map-christmas.svg`, and `demo/travel-map-newyear.svg`. In the SVGs the planned state and city pulse; the PNGs keep them static.
 
 ![Same fictional demo with the Christmas palette](demo/travel-map-christmas.png)
+
+![Same fictional demo with the New Year palette](demo/travel-map-newyear.png)
 
 ![Same fictional demo as SVG](demo/travel-map.svg)
 
@@ -101,8 +103,9 @@ US states stay on the badge even when the count is zero. China provinces and Jap
 | `default` | `#0d1117`, white text | `#3fb950`, white text |
 | `halloween` | `#0d1117`, `#e3d04f` text | `#c46212`, white text |
 | `christmas` | `#6a994e`, `#f2e8cf` text | `#bc4749`, `#f2e8cf` text |
+| `newyear` | `#4d2a00`, `#f9e6a8` text | `#cc6f00`, `#f9e6a8` text |
 
-Halloween keeps the yellow dot color on the short label and uses white on the orange value so the longer line stays readable. Christmas uses the stripe green, the visited red, and the cream dot.
+Halloween keeps the yellow dot color on the short label and uses white on the orange value so the longer line stays readable. Christmas uses the stripe green, the visited red, and the cream dot. New Year uses the dark brown stripe, the amber visited fill, and the pale gold dot.
 
 ### Inputs
 
@@ -110,11 +113,11 @@ Halloween keeps the yellow dot color on the short label and uses white on the or
 | --- | --- | --- | --- |
 | `config` | no | `travel.yml` | YAML file of countries, US states, Chinese provinces, Japanese prefectures, cities, and optional planned places. |
 | `output` | no | `dist` | Directory for the map files and, when enabled, the badge. |
-| `palette` | no | `default` | `default`, `halloween`, `christmas`, or `auto`. |
+| `palette` | no | `default` | `default`, `halloween`, `christmas`, `newyear`, or `auto`. |
 | `format` | no | `png` | `png`, `svg`, or `both`. |
 | `badge` | no | `true` | `true` writes `travel-badge.svg`. `false` skips it. |
 
-`auto` uses the Halloween colors on 31 October (UTC), the Christmas colors on 24, 25, and 26 December (UTC), and the green map every other UTC day. The same rule as contrib-tetris. Omit `palette` to keep the green map on every day, including those holidays.
+`auto` uses the New Year colors on 1 January (UTC), the Halloween colors on 31 October (UTC), the Christmas colors on 24, 25, and 26 December (UTC), and the green map every other UTC day. The same rule as contrib-tetris. Omit `palette` to keep the green map on every day, including those holidays.
 
 `format` chooses the files. `png` writes the two PNGs. `svg` writes the two SVGs. `both` writes all four. Omit `format` to keep writing only the two PNGs. Omit `badge` to write the stats badge as well. `badge: false` writes the maps and no badge.
 
@@ -174,11 +177,11 @@ planned:
 
 Listing `USA`, `China`, or `Japan` under `countries` fills that whole country, and the matching subdivision list is not drawn on top of it. Listing states, provinces, or prefectures alone does not tint the rest of that country. A state listed under both `us_states` and `planned_states` is rejected: it is either visited or planned. A repeated place, an unknown name, a coordinate out of range, or an unknown key fails with a message that quotes the entry and, when a name is close, suggests it. Two-letter codes can stay unquoted: the loader does not read `NO` as a boolean. Other countries' subdivisions are not supported yet.
 
-Planned places are painted only as pending. They stay out of the visited country, state, and city sets, so they do not change visited counts or the stats badge. The SVG animates them with SMIL on a 1.8s loop: the `planned-states` group fades between opacity 0.25 and 0.6, and each planned city (`planned-` plus the name, with spaces turned into hyphens) has an expanding ring and a pulsing dot. PNG shows the same fill and dot without that animation. The accent color is the palette's visited color for the theme, so the default map uses `#3fb950` on the dark theme and `#1a7f37` on the light theme, Halloween uses `#c46212`, and Christmas uses `#bc4749`.
+Planned places are painted only as pending. They stay out of the visited country, state, and city sets, so they do not change visited counts or the stats badge. The SVG animates them with SMIL on a 1.8s loop: the `planned-states` group fades between opacity 0.25 and 0.6, and each planned city (`planned-` plus the name, with spaces turned into hyphens) has an expanding ring and a pulsing dot. PNG shows the same fill and dot without that animation. The accent color is the palette's visited color for the theme, so the default map uses `#3fb950` on the dark theme and `#1a7f37` on the light theme, Halloween uses `#c46212`, Christmas uses `#bc4749`, and New Year uses `#cc6f00`.
 
 ## Palettes
 
-The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border in the canvas color. The light map uses white, land `#d0d7de`, and the same layout. Default and Halloween city dots on the light map are `#1f2328` so they stay visible. Christmas dots stay `#f2e8cf` on both themes; they sit on the red and green bands.
+The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border in the canvas color. The light map uses white, land `#d0d7de`, and the same layout. Default and Halloween city dots on the light map are `#1f2328` so they stay visible. Christmas dots stay `#f2e8cf` on both themes; they sit on the red and green bands. New Year dots stay `#f9e6a8` on both themes; they sit on the amber and brown bands.
 
 | Palette | Theme | Visited | Dots |
 | --- | --- | --- | --- |
@@ -188,12 +191,14 @@ The dark map uses the GitHub dark canvas `#0d1117`, land `#30363d`, and a border
 | `halloween` | light | `#c46212`, solid | `#1f2328` |
 | `christmas` | dark | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
 | `christmas` | light | `#bc4749` with `#6a994e` diagonal stripes | `#f2e8cf` |
+| `newyear` | dark | `#cc6f00` with `#4d2a00` diagonal stripes | `#f9e6a8` |
+| `newyear` | light | `#cc6f00` with `#4d2a00` diagonal stripes | `#f9e6a8` |
 
-Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). The stripes are 8 pixels wide at the map's resolution, half red and half green, clipped to the visited shapes. In the SVG those stripes are a pattern, still `#bc4749` under `#6a994e`, with the same 8px period and `#f2e8cf` dots. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick. Planned states and cities use that same accent, not a separate palette: a translucent fill and dashed outline for states, and a solid dot for cities. Only the SVG animates them.
+Halloween colors are GitHub Primer `@primer/primitives` 11.10.0 (`--contribution-halloween` on the dark theme). Christmas colors are [Coolors' most popular Christmas palette](https://coolors.co/palettes/popular/christmas) (`386641`, `6a994e`, `a7c957`, `f2e8cf`, `bc4749`). New Year colors are the [Color Hunt gold gradient](https://colorhunt.co/palette/f9e6a8f2a900cc6f004d2a00) (`f9e6a8`, `f2a900`, `cc6f00`, `4d2a00`), the same source as contrib-tetris `newyear`; `#f2a900` is unused in the map ink. Holiday stripes are 8 pixels wide at the map's resolution, half visited and half stripe, clipped to the visited shapes. In the SVG those stripes are a `{palette}-stripes` pattern (for example `christmas-stripes` or `newyear-stripes`), with the same 8px period. Default and Halloween stay solid fills. Provinces and prefectures use the same fill as countries and US states for the palette you pick. Planned states and cities use that same accent, not a separate palette: a translucent fill and dashed outline for states, and a solid dot for cities. Only the SVG animates them.
 
 ## How it is drawn
 
-Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas then lays diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Planned states and cities are painted after that, in the accent color, and they are not part of the visited shapes. Each PNG is 1200×474. The SVG uses that same frame as its viewBox, the same projection, and the same fills, and it is the only output that runs the planned pulse.
+Natural Earth, plate carrée, seam at 30°W. Land west of that line is shifted by 360° so the Pacific sits in the middle and the Americas sit on the right. Antarctica is omitted. Countries are simplified slightly, then painted as plain land. A country listed under `countries` is filled in full. A listed US state, Chinese province, or Japanese prefecture is filled on its own; the rest of that country is left as land. Christmas and New Year then lay diagonal stripes over those visited shapes. City dots sit on top, with a soft halo. Planned states and cities are painted after that, in the accent color, and they are not part of the visited shapes. Each PNG is 1200×474. The SVG uses that same frame as its viewBox, the same projection, and the same fills, and it is the only output that runs the planned pulse.
 
 Countries and the 1:50m admin-1 file (US states and Chinese provinces) are the unmodified Natural Earth zips in [`travel_footprint/data/`](travel_footprint/data/README.md), public domain, checked against `travel_footprint/data/SHA256SUMS`. Japanese prefectures are a public-domain extract of Natural Earth 1:10m admin-1, because the 1:50m admin-1 theme does not include Japan. If a 1:50m zip is missing, the CLI downloads it once into `TRAVEL_FOOTPRINT_CACHE`, or `$XDG_CACHE_HOME/travel-footprint`, or `~/.cache/travel-footprint`, and checks the hash before drawing. The Japan extract ships with the repository. An installed copy finds those same files in `data/` next to the library.
 
@@ -214,7 +219,7 @@ python3 travel_footprint.py --config travel.example.yml --out dist --badge false
 python3 scripts/make_demo.py
 ```
 
-`--palette` is the same choice as the action input. `--date` is the UTC day used when the palette is `auto`. Halloween is 31 October. Christmas is 24, 25, and 26 December. `--format` is `png` (the default), `svg`, or `both`. `--badge` is `true` (the default) or `false`. `true` writes `travel-badge.svg` next to the map.
+`--palette` is the same choice as the action input. `--date` is the UTC day used when the palette is `auto`. New Year is 1 January. Halloween is 31 October. Christmas is 24, 25, and 26 December. `--format` is `png` (the default), `svg`, or `both`. `--badge` is `true` (the default) or `false`. `true` writes `travel-badge.svg` next to the map.
 
 [`.github/workflows/test.yml`](.github/workflows/test.yml) runs the tests, and checks that `python -m build` produces an sdist and a wheel, on pull requests and on pushes to `main`. Nothing is uploaded.
 

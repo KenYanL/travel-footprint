@@ -341,7 +341,7 @@ def dump_config(config: TravelConfig) -> str:
 
 
 def render_demo(config_path: Path, out_dir: Path) -> TravelConfig:
-    """Render the default dark/light pair, a Christmas dark map, and the stats badge.
+    """Render the default dark/light pair, holiday dark maps, and the stats badge.
 
     The badge uses the same fictional config and the default palette. It is
     not a real itinerary.
@@ -353,6 +353,8 @@ def render_demo(config_path: Path, out_dir: Path) -> TravelConfig:
     resolved = resolve_travel(config, world)
     render_png(world, resolved, "dark", "christmas", out_dir / "travel-map-christmas.png")
     render_svg(world, resolved, "dark", "christmas", out_dir / "travel-map-christmas.svg")
+    render_png(world, resolved, "dark", "newyear", out_dir / "travel-map-newyear.png")
+    render_svg(world, resolved, "dark", "newyear", out_dir / "travel-map-newyear.svg")
     return config
 
 
