@@ -63,6 +63,27 @@ def test_unknown_key_names_the_supported_ones() -> None:
     assert "not supported yet" in message
 
 
+def test_misspelled_key_suggests_the_supported_one() -> None:
+    with pytest.raises(ConfigError, match=r"Did you mean 'countries' for 'contries'\?"):
+        parse_config("contries:\n  - NZ\n")
+
+
+def test_misspelled_key_suggestion_ignores_case() -> None:
+    with pytest.raises(ConfigError, match=r"Did you mean 'us_states' for 'US_State'\?"):
+        parse_config("US_State:\n  - CO\n")
+
+
+def test_unrelated_key_gets_no_suggestion() -> None:
+    with pytest.raises(ConfigError) as caught:
+        parse_config("notes:\n  - Somewhere\n")
+    assert "Did you mean" not in str(caught.value)
+
+
+def test_misspelled_city_key_suggests_the_supported_one() -> None:
+    with pytest.raises(ConfigError, match=r"Did you mean 'lat' for 'lati'\?"):
+        parse_config("cities:\n  - name: A\n    lati: 1\n    lon: 2\n")
+
+
 def test_explicit_null_is_rejected() -> None:
     with pytest.raises(ConfigError, match="countries is null"):
         parse_config("countries:\n")

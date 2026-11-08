@@ -920,6 +920,20 @@ def _yaml_error_text(exc: yaml.YAMLError) -> str:
     return text[0] if text else "the file could not be parsed"
 
 
+def _key_hint(unknown: list, allowed: tuple[str, ...]) -> str:
+    """Return " Did you mean ...?" for misspelled keys, or an empty string."""
+    pairs = []
+    for key in unknown:
+        if not isinstance(key, str):
+            continue
+        close = difflib.get_close_matches(key.strip().lower(), allowed, n=1, cutoff=0.75)
+        if close:
+            pairs.append(f"{close[0]!r} for {key!r}")
+    if not pairs:
+        return ""
+    return f" Did you mean {', '.join(pairs)}?"
+
+
 def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
     """Parse and structurally validate a travel YAML document."""
     where = path or "config"
@@ -947,7 +961,7 @@ def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
         noun = "key" if len(unknown) == 1 else "keys"
         names = ", ".join(repr(key) for key in unknown)
         raise ConfigError(
-            f"{where} has unknown {noun} {names}. "
+            f"{where} has unknown {noun} {names}.{_key_hint(unknown, _ALLOWED_KEYS)} "
             f"Supported keys are {_CONFIG_SHAPE}. "
             "Other subdivisions are not supported yet."
         )
@@ -1057,7 +1071,9 @@ def _one_city(item: object, index: int, where: str, example: str, field: str = "
     unknown = [key for key in item if key not in _CITY_KEYS]
     if unknown:
         names = ", ".join(repr(key) for key in unknown)
-        raise ConfigError(f"{label} has unknown key {names}. {example}")
+        raise ConfigError(
+            f"{label} has unknown key {names}.{_key_hint(unknown, tuple(sorted(_CITY_KEYS)))} {example}"
+        )
     if "name" not in item:
         raise ConfigError(f"{label} is missing name. {example}")
     name = item["name"]
