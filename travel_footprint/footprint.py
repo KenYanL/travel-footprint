@@ -965,6 +965,9 @@ def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
             f"Supported keys are {_CONFIG_SHAPE}. "
             "Other subdivisions are not supported yet."
         )
+    cities = _cities(_section(data, "cities", where), where)
+    planned = _cities(_section(data, "planned", where), where, field="planned")
+    _reject_planned_cities_already_visited(cities, planned, where)
     return TravelConfig(
         countries=_string_list(_section(data, "countries", where), "countries", where),
         us_states=_string_list(_section(data, "us_states", where), "us_states", where),
@@ -974,13 +977,28 @@ def parse_config(text: str, *, path: str | None = None) -> TravelConfig:
         japan_prefectures=_string_list(
             _section(data, "japan_prefectures", where), "japan_prefectures", where
         ),
-        cities=_cities(_section(data, "cities", where), where),
-        planned=_cities(_section(data, "planned", where), where, field="planned"),
+        cities=cities,
+        planned=planned,
         planned_states=_string_list(
             _section(data, "planned_states", where), "planned_states", where
         ),
         path=path,
     )
+
+
+def _reject_planned_cities_already_visited(
+    cities: tuple[City, ...], planned: tuple[City, ...], where: str
+) -> None:
+    """A city is either visited or planned, matching the planned_states rule."""
+    visited = {normalize_name(city.name): city.name for city in cities}
+    for index, city in enumerate(planned, start=1):
+        earlier = visited.get(normalize_name(city.name))
+        if earlier is not None:
+            raise ConfigError(
+                f"{where}: planned entry {index} ({city.name!r}) is already listed under "
+                f"cities as {earlier!r}. A city is either visited or planned. "
+                "Once you have been there, remove it from planned."
+            )
 
 
 def _section(data: dict, field: str, where: str) -> object:

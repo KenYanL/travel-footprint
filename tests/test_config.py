@@ -232,6 +232,24 @@ def test_repeated_planned_city_name_is_rejected() -> None:
         parse_config(text)
 
 
+def test_planned_city_already_visited_is_rejected() -> None:
+    text = (
+        "cities:\n  - name: Sample Cove\n    lat: 44\n    lon: -120.5\n"
+        "planned:\n  - name: sample cove\n    lat: 44\n    lon: -120.5\n"
+    )
+    with pytest.raises(ConfigError, match="planned entry 1 .*already listed under cities"):
+        parse_config(text)
+
+
+def test_planned_city_with_a_new_name_is_kept() -> None:
+    text = (
+        "cities:\n  - name: Sample Cove\n    lat: 44\n    lon: -120.5\n"
+        "planned:\n  - name: Sample Bay\n    lat: 45\n    lon: -121\n"
+    )
+    config = parse_config(text)
+    assert [city.name for city in config.planned] == ["Sample Bay"]
+
+
 def test_edges_of_the_coordinate_range_are_kept() -> None:
     text = "cities:\n  - name: Corner\n    lat: 90\n    lon: -180\n"
     config = parse_config(text)

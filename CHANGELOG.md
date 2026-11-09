@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A planned city that is also listed under `cities` now fails with a message naming both entries. Names match ignoring case and punctuation, the same rule `planned_states` already follows for `us_states`.
 - A misspelled config key now gets a suggestion. `contries:` fails with "Did you mean 'countries' for 'contries'?", and a city key such as `lattitude` suggests `latitude`. Matching ignores case. Keys with no close match keep the plain list of supported keys.
 - Packaging prep for the CLI. `pyproject.toml` builds `travel-footprint` 0.1.0 with a `travel-footprint` console script and the Natural Earth files inside the package. CI runs `python -m build` and checks that the sdist and wheel exist. The package is not published on PyPI.
 - `planned` and `planned_states`. Planned cities use the same shape as `cities`, and planned US states accept a name or USPS code. They are drawn in the palette accent and are not counted as visited. In SVG they pulse with SMIL on a 1.8s loop: a planned state fades between opacity 0.25 and 0.6 with a dashed outline, and a planned city shows an expanding ring plus a dot. PNG keeps that fill and dot static. Configs that omit the keys are unchanged. Planned places are left out of the stats badge.
