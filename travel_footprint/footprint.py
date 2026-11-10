@@ -1232,6 +1232,13 @@ def resolve_travel(config: TravelConfig, world: World | None = None) -> Resolved
             "Planned states are drawn separately and are not counted as visited."
         ),
     )
+    if planned_states and "USA" in countries:
+        raise ConfigError(
+            f"{where}: planned_states entry {config.planned_states[0]!r} cannot be planned "
+            "because United States is listed under countries, so every state is already "
+            "visited. Remove the United States from countries and list visited states "
+            "under us_states instead."
+        )
     visited_states = set(matched_states)
     for entry, canonical in zip(config.planned_states, planned_states):
         if canonical in visited_states:

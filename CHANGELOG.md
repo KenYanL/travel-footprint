@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A `planned_states` entry now fails when the United States is listed under `countries`. The whole country already counts as visited, so the message names the planned state and suggests moving visited states to `us_states`.
 - A planned city that is also listed under `cities` now fails with a message naming both entries. Names match ignoring case and punctuation, the same rule `planned_states` already follows for `us_states`.
 - A misspelled config key now gets a suggestion. `contries:` fails with "Did you mean 'countries' for 'contries'?", and a city key such as `lattitude` suggests `latitude`. Matching ignores case. Keys with no close match keep the plain list of supported keys.
 - Packaging prep for the CLI. `pyproject.toml` builds `travel-footprint` 0.1.0 with a `travel-footprint` console script and the Natural Earth files inside the package. CI runs `python -m build` and checks that the sdist and wheel exist. The package is not published on PyPI.

@@ -132,6 +132,12 @@ def test_planned_state_already_visited_is_rejected(world) -> None:
         resolve_travel(config, world)
 
 
+def test_planned_state_rejected_when_whole_us_is_visited(world) -> None:
+    config = parse_config("countries:\n  - US\nplanned_states:\n  - FL\n")
+    with pytest.raises(ConfigError, match="'FL' cannot be planned because United States"):
+        resolve_travel(config, world)
+
+
 def test_listing_the_whole_country_covers_states(world) -> None:
     config = parse_config("countries:\n  - US\nus_states:\n  - WY\n")
     resolved = resolve_travel(config, world)
