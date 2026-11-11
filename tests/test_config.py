@@ -255,3 +255,23 @@ def test_edges_of_the_coordinate_range_are_kept() -> None:
     config = parse_config(text)
     assert config.cities[0].lat == 90
     assert config.cities[0].lon == -180
+
+
+def test_repeated_city_with_same_coordinates_is_rejected() -> None:
+    text = (
+        "cities:\n"
+        "  - name: Sample Cove\n    lat: 44\n    lon: -120.5\n"
+        "  - name: sample cove\n    latitude: 44.00001\n    longitude: -120.5\n"
+    )
+    with pytest.raises(ConfigError, match="cities entry 2 .* repeats an earlier city"):
+        parse_config(text)
+
+
+def test_cities_sharing_a_name_at_different_places_are_allowed() -> None:
+    text = (
+        "cities:\n"
+        "  - name: Portland\n    lat: 45.52\n    lon: -122.68\n"
+        "  - name: Portland\n    lat: 43.66\n    lon: -70.26\n"
+    )
+    config = parse_config(text)
+    assert [city.lat for city in config.cities] == [45.52, 43.66]
