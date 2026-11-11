@@ -2102,6 +2102,40 @@ def render_badge(stats: TravelStats, palette: str, path: Path) -> None:
     _write_atomic(path, badge_document(stats, palette).encode("utf-8"))
 
 
+def _blocking_file(path: Path) -> Path | None:
+    """Return an existing file that stops ``path`` from being created.
+
+    Ancestors that do not exist yet are walked. An existing directory does
+    not block its children. ``path`` itself is not inspected.
+    """
+    current = path.parent
+    seen: set[Path] = set()
+    while current not in seen:
+        seen.add(current)
+        if current.exists():
+            if current.is_dir():
+                return None
+            return current
+        if current.parent == current:
+            return None
+        current = current.parent
+    return None
+
+
+def _ensure_output_directory(out_dir: Path) -> None:
+    """``--out`` has to be a directory, whether or not it exists yet."""
+    shown = str(out_dir)
+    hint = "Pass a directory, for example dist."
+    if out_dir.exists() and not out_dir.is_dir():
+        raise InputError(f"output (--out) is {shown!r}, which is a file. {hint}")
+    blocker = _blocking_file(out_dir)
+    if blocker is not None:
+        raise InputError(
+            f"output (--out) is {shown!r}, which cannot be created because "
+            f"{str(blocker)!r} is a file. {hint}"
+        )
+
+
 def render_maps(
     config: TravelConfig,
     out_dir: Path,
@@ -2113,6 +2147,9 @@ def render_maps(
     badge: bool = True,
 ) -> RenderResult:
     """Resolve ``config`` and write the requested maps. Nothing is written on failure.
+
+    A path that cannot be created, because it is a file or sits under a file,
+    is rejected before the map data is loaded.
 
     ``image_format`` is ``png`` (the default), ``svg``, or ``both``. ``png`` writes
     the dark and light PNGs. ``svg`` writes the dark and light SVGs. ``both`` writes
@@ -2131,10 +2168,7 @@ def render_maps(
             f"badge is {badge!r}, which is not true or false. "
             "Use true to write travel-badge.svg next to the map, or false to skip it."
         )
-    if out_dir.exists() and not out_dir.is_dir():
-        raise InputError(
-            f"output (--out) is {str(out_dir)!r}, which is a file. Pass a directory, for example dist."
-        )
+    _ensure_output_directory(out_dir)
     concrete = resolve_palette(palette, today)
     world = load_world() if world is None else world
     resolved = resolve_travel(config, world)
