@@ -1078,6 +1078,15 @@ def _cities(value: object, where: str, field: str = "cities") -> tuple[City, ...
                 )
             seen_names.add(folded)
             seen_ids.add(marker)
+        else:
+            key = f"{normalize_name(city.name)}@{round(city.lat, 4)},{round(city.lon, 4)}"
+            if key in seen_ids:
+                raise ConfigError(
+                    f"{where}: {field} entry {index} ({city.name!r}) repeats an earlier city "
+                    "with the same name and coordinates. List it once. Cities that share a name "
+                    "at different coordinates are fine."
+                )
+            seen_ids.add(key)
         cities.append(city)
     return tuple(cities)
 
