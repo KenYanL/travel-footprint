@@ -1014,17 +1014,26 @@ def _section(data: dict, field: str, where: str) -> object:
 
 
 def load_config(path: Path) -> TravelConfig:
-    """Read ``path`` as travel YAML."""
+    """Read ``path`` as travel YAML.
+
+    Missing, directory, unreadable, and non-UTF-8 paths fail with ConfigError.
+    They do not raise the underlying OS or decode exception.
+    """
+    shown = str(path)
+    hint = f"Pass a YAML file of {_CONFIG_SHAPE}, for example travel.yml."
+    if path.is_dir():
+        raise ConfigError(f"config is {shown!r}, which is a directory. {hint}")
+    if not path.exists():
+        raise ConfigError(f"config is {shown!r}, which does not exist. {hint}")
     if not path.is_file():
-        raise ConfigError(
-            f"config is {str(path)!r}, which does not exist. "
-            f"Pass a YAML file of {_CONFIG_SHAPE}, for example travel.yml."
-        )
+        raise ConfigError(f"config is {shown!r}, which is not a regular file. {hint}")
     try:
         text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise ConfigError(f"config is {shown!r}, which is not valid UTF-8. {hint}") from None
     except OSError as exc:
-        raise ConfigError(f"config {path} could not be read ({exc}).") from exc
-    return parse_config(text, path=str(path))
+        raise ConfigError(f"config is {shown!r}, which could not be read ({exc}). {hint}") from exc
+    return parse_config(text, path=shown)
 
 
 def _string_list(value: object, field: str, where: str) -> tuple[str, ...]:

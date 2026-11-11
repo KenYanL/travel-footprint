@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -129,6 +130,37 @@ def test_missing_file_names_the_path(tmp_path: Path) -> None:
     missing = tmp_path / "travel.yml"
     with pytest.raises(ConfigError, match="does not exist"):
         load_config(missing)
+
+
+def test_config_directory_is_not_called_missing(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="is a directory") as caught:
+        load_config(tmp_path)
+    message = str(caught.value)
+    assert "does not exist" not in message
+    assert "travel.yml" in message
+
+
+def test_config_that_is_not_utf8_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "travel.yml"
+    path.write_bytes(b"countries:\n  - NZ\n\xff")
+    with pytest.raises(ConfigError, match="not valid UTF-8") as caught:
+        load_config(path)
+    assert str(path) in str(caught.value)
+    assert "travel.yml" in str(caught.value)
+
+
+def test_unreadable_config_is_rejected_without_a_traceback(tmp_path: Path) -> None:
+    path = tmp_path / "travel.yml"
+    path.write_text("countries:\n  - NZ\n", encoding="utf-8")
+    path.chmod(0o000)
+    try:
+        if os.access(path, os.R_OK):
+            pytest.skip("this process can still read a mode 000 file")
+        with pytest.raises(ConfigError, match="could not be read") as caught:
+            load_config(path)
+        assert str(path) in str(caught.value)
+    finally:
+        path.chmod(0o644)
 
 
 def test_city_requires_coordinates() -> None:
