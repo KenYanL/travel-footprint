@@ -34,7 +34,36 @@ def test_bad_date_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]
 def test_missing_config_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["--config", str(tmp_path / "missing.yml"), "--out", str(tmp_path / "dist")])
     assert code == 1
-    assert "does not exist" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "does not exist" in captured.err
+    assert "Traceback" not in captured.err
+    assert not (tmp_path / "dist").exists()
+
+
+def test_config_directory_is_rejected_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = main(["--config", str(tmp_path), "--out", str(tmp_path / "dist")])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "is a directory" in captured.err
+    assert "does not exist" not in captured.err
+    assert "Traceback" not in captured.err
+    assert not (tmp_path / "dist").exists()
+
+
+def test_non_utf8_config_is_rejected_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "travel.yml"
+    config.write_bytes(b"countries:\n  - NZ\n\xff")
+    out = tmp_path / "dist"
+    code = main(["--config", str(config), "--out", str(out)])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "not valid UTF-8" in captured.err
+    assert "Traceback" not in captured.err
+    assert not out.exists()
 
 
 def test_cli_renders_the_example(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
