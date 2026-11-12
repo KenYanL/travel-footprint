@@ -214,3 +214,49 @@ def test_workflow_runs_pytest_on_pull_requests() -> None:
     assert "pytest" in text
     assert "python -m build" in text
     assert "twine check" in text
+
+
+def test_output_filename_that_is_a_directory_writes_nothing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    config = tmp_path / "travel.yml"
+    config.write_text("countries:\n  - NZ\n", encoding="utf-8")
+    out = tmp_path / "dist"
+    out.mkdir()
+    blocker = out / "travel-map.png"
+    blocker.mkdir()
+    leftover = out / "already.png"
+    leftover.write_bytes(b"keep")
+    code = main(["--config", str(config), "--out", str(out)])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "travel-map.png" in captured.err
+    assert "directory" in captured.err
+    assert blocker.is_dir()
+    assert leftover.read_bytes() == b"keep"
+    assert not (out / "travel-map-light.png").exists()
+    assert not (out / "travel-badge.svg").exists()
+
+
+def test_badge_path_that_is_a_directory_writes_nothing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    config = tmp_path / "travel.yml"
+    config.write_text("countries:\n  - NZ\n", encoding="utf-8")
+    out = tmp_path / "dist"
+    out.mkdir()
+    (out / "travel-badge.svg").mkdir()
+    code = main(["--config", str(config), "--out", str(out), "--format", "svg"])
+    assert code == 1
+    assert "travel-badge.svg" in capsys.readouterr().err
+    assert not (out / "travel-map.svg").exists()
+    assert not (out / "travel-map-light.svg").exists()
+    assert (out / "travel-badge.svg").is_dir()
+
+
+def test_failed_run_cleanup_leaves_directories_in_place(tmp_path: Path) -> None:
+    from footprint import _remove_written_files
+
+    folder = tmp_path / "travel-map.png"
+    folder.mkdir()
+    written = tmp_path / "travel-map-light.png"
+    written.write_bytes(b"partial")
+    _remove_written_files([written, folder])
+    assert folder.is_dir()
+    assert not written.exists()

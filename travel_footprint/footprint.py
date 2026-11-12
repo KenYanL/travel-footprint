@@ -2095,6 +2095,23 @@ def badge_document(stats: TravelStats, palette: str) -> str:
     return "\n".join(lines)
 
 
+def _reject_if_directory(path: Path, label: str) -> None:
+    """A map or badge path cannot already be a folder."""
+    if path.is_dir():
+        raise InputError(
+            f"{label} is {str(path)!r}, which is a directory. "
+            "Pass an --out directory whose map and badge filenames are not already folders, "
+            "for example dist."
+        )
+
+
+def _remove_written_files(paths: list[Path]) -> None:
+    """Delete files this run wrote. Leave directories in place."""
+    for path in paths:
+        if path.is_symlink() or path.is_file():
+            path.unlink(missing_ok=True)
+
+
 def render_badge(stats: TravelStats, palette: str, path: Path) -> None:
     """Write ``travel-badge.svg``. ``palette`` must be concrete, not ``auto``."""
     if palette not in PALETTES:
@@ -2169,17 +2186,26 @@ def render_maps(
             "Use true to write travel-badge.svg next to the map, or false to skip it."
         )
     _ensure_output_directory(out_dir)
-    concrete = resolve_palette(palette, today)
-    world = load_world() if world is None else world
-    resolved = resolve_travel(config, world)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    want_png = image_format in {"png", "both"}
+    want_svg = image_format in {"svg", "both"}
     dark = out_dir / DARK_FILENAME
     light = out_dir / LIGHT_FILENAME
     dark_svg = out_dir / DARK_SVG_FILENAME
     light_svg = out_dir / LIGHT_SVG_FILENAME
     badge_path = out_dir / BADGE_FILENAME
-    want_png = image_format in {"png", "both"}
-    want_svg = image_format in {"svg", "both"}
+    planned: list[tuple[Path, str]] = []
+    if want_png:
+        planned.extend(((dark, "dark map (--out / travel-map.png)"), (light, "light map (--out / travel-map-light.png)")))
+    if want_svg:
+        planned.extend(((dark_svg, "dark SVG (--out / travel-map.svg)"), (light_svg, "light SVG (--out / travel-map-light.svg)")))
+    if badge:
+        planned.append((badge_path, "badge (--out / travel-badge.svg)"))
+    for path, label in planned:
+        _reject_if_directory(path, label)
+    concrete = resolve_palette(palette, today)
+    world = load_world() if world is None else world
+    resolved = resolve_travel(config, world)
+    out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     try:
         if want_png:
@@ -2196,8 +2222,7 @@ def render_maps(
             render_badge(travel_stats(resolved, world), concrete, badge_path)
             written.append(badge_path)
     except Exception:
-        for path in written:
-            path.unlink(missing_ok=True)
+        _remove_written_files(written)
         raise
     return RenderResult(
         dark_path=dark if want_png else None,
