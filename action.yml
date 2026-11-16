@@ -1,8 +1,7 @@
 name: Travel Footprint
 description: >-
   Render a Pacific-centred world map of visited countries, US states,
-  Chinese provinces, Japanese prefectures, and cities. Writes one dark map
-  and one light map. The default format is PNG. svg or both also writes SVG.
+  Chinese provinces, Japanese prefectures, and cities.
 author: KenYanL
 
 branding:
