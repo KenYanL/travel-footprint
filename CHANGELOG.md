@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Marketplace publishing prep. The action `description` is 120 characters, under the GitHub Marketplace limit of 125. The MIT LICENSE copyright uses KenYanL.
+
 - A config path that is a directory, not valid UTF-8, or otherwise unreadable now fails with a `ConfigError` that names the path. A directory is no longer described as missing. These errors do not raise the underlying OS or decode exception.
 - A city listed twice under `cities` with the same name and coordinates now fails with a message naming the repeated entry. Names match ignoring case and punctuation, and coordinates match to four decimal places. Cities that share a name at different coordinates, such as two Portlands, are still allowed.
 - A `planned_states` entry now fails when the United States is listed under `countries`. The whole country already counts as visited, so the message names the planned state and suggests moving visited states to `us_states`.
