@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-17
+
 ### Added
 
 - Marketplace publishing prep. The action `description` is 120 characters, under the GitHub Marketplace limit of 125. The MIT LICENSE copyright uses KenYanL.
@@ -15,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A `planned_states` entry now fails when the United States is listed under `countries`. The whole country already counts as visited, so the message names the planned state and suggests moving visited states to `us_states`.
 - A planned city that is also listed under `cities` now fails with a message naming both entries. Names match ignoring case and punctuation, the same rule `planned_states` already follows for `us_states`.
 - A misspelled config key now gets a suggestion. `contries:` fails with "Did you mean 'countries' for 'contries'?", and a city key such as `lattitude` suggests `latitude`. Matching ignores case. Keys with no close match keep the plain list of supported keys.
-- Packaging prep for the CLI. `pyproject.toml` builds `travel-footprint` 0.1.0 with a `travel-footprint` console script and the Natural Earth files inside the package. CI runs `python -m build` and checks that the sdist and wheel exist. The package is not published on PyPI.
+- Packaging for the CLI. `pyproject.toml` builds `travel-footprint` 1.0.0 with a `travel-footprint` console script and the Natural Earth files inside the package. CI runs `python -m build` and checks that the sdist and wheel exist. The package is not published on PyPI until that upload is approved.
 - `planned` and `planned_states`. Planned cities use the same shape as `cities`, and planned US states accept a name or USPS code. They are drawn in the palette accent and are not counted as visited. In SVG they pulse with SMIL on a 1.8s loop: a planned state fades between opacity 0.25 and 0.6 with a dashed outline, and a planned city shows an expanding ring plus a dot. PNG keeps that fill and dot static. Configs that omit the keys are unchanged. Planned places are left out of the stats badge.
 - Stats badge `travel-badge.svg`, written next to the map. It is on by default. `--badge false`, or the action input `badge: false`, skips it. The badge is a self-contained SVG with no network request. It shows countries visited, that count as a percent of the countries the map can draw, and US states. China provinces and Japan prefectures are included when those units are drawn. Colors follow the active palette: default green `#3fb950`, Halloween orange `#c46212` with yellow `#e3d04f`, and Christmas red `#bc4749` with green `#6a994e` and cream `#f2e8cf`. The map files are unchanged. Planned states and planned cities are not included in these counts.
 - SVG output. `--format svg` writes `travel-map.svg` and `travel-map-light.svg`. `--format both` writes those beside the PNGs. The default stays `png`, so existing runs still write only the two PNGs. The action input is `format`, with `map_dark_svg_path` and `map_light_svg_path` set when an SVG is written. Christmas stripes are an SVG pattern: visited regions stay `#bc4749` with `#6a994e` 8px diagonal bands and `#f2e8cf` dots. Default and Halloween stay solid fills.
@@ -32,3 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Listing US states paints only those states. The rest of the United States stays the plain land color, including Alaska and every state that was not listed. The lighter whole-country tint is gone. A country listed under `countries` still fills entirely.
 - Christmas visited regions use diagonal stripes: red `#bc4749` with green `#6a994e`, 8 pixels per band at the output resolution, clipped to the visited shapes. City dots stay `#f2e8cf`. Default and Halloween stay solid fills.
 - The fictional demo is a larger seeded sample, spread across every continent, and it skips disputed territories plus a fixed list of sensitive countries.
+
+[Unreleased]: https://github.com/KenYanL/travel-footprint/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/KenYanL/travel-footprint/releases/tag/v1.0.0

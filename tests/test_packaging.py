@@ -27,7 +27,7 @@ def test_import_footprint_finds_packaged_natural_earth_files() -> None:
 def test_pyproject_declares_the_distribution() -> None:
     text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert 'name = "travel-footprint"' in text
-    assert 'version = "0.1.0"' in text
+    assert 'version = "1.0.0"' in text
     assert 'requires-python = ">=3.10"' in text
     assert 'license = "MIT"' in text
     assert 'travel-footprint = "travel_footprint:main"' in text
