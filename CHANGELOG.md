@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - `--out` under a parent path that is a file now fails with an `InputError` that names both paths, before the map data is loaded and without a traceback. An `--out` that is itself a file already failed this way; that case is now tested too.
+- If `travel-map.png`, `travel-map-light.png`, the SVG copies, or `travel-badge.svg` already exists as a directory inside `--out`, the run now fails with a message naming that path and writes none of the output files. Cleaning up a failed run also leaves those directories in place instead of raising `IsADirectoryError`.
 
 ## [1.0.0] - 2026-11-17
 
