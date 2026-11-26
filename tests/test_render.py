@@ -12,6 +12,7 @@ from footprint import (
     City,
     ConfigError,
     DataError,
+    InputError,
     TravelConfig,
     load_checksums,
     load_world,
@@ -462,3 +463,30 @@ def test_bad_checksum_is_rejected(tmp_path: Path) -> None:
     payload.write_bytes(b"not the natural earth zip")
     with pytest.raises(DataError, match="sha256"):
         verify_sha256(payload, "ab" * 32, "ne_50m_admin_0_countries.zip")
+
+
+def test_output_file_is_rejected_before_maps_are_written(world, tmp_path: Path) -> None:
+    config = parse_config("countries:\n  - NZ\n", path="nz.yml")
+    out = tmp_path / "dist"
+    out.write_text("not a directory\n", encoding="utf-8")
+    before = out.read_bytes()
+    with pytest.raises(InputError, match="is a file") as caught:
+        render_maps(config, out, "default", date(2026, 6, 1), world=world)
+    assert str(out) in str(caught.value)
+    assert out.is_file()
+    assert out.read_bytes() == before
+    assert list(tmp_path.glob("travel-map*")) == []
+
+
+def test_output_blocked_by_a_parent_file_is_rejected(world, tmp_path: Path) -> None:
+    config = parse_config("countries:\n  - NZ\n", path="nz.yml")
+    blocker = tmp_path / "blocked"
+    blocker.write_text("not a directory\n", encoding="utf-8")
+    out = blocker / "maps" / "dist"
+    with pytest.raises(InputError, match="cannot be created") as caught:
+        render_maps(config, out, "default", date(2026, 6, 1), world=world)
+    message = str(caught.value)
+    assert str(out) in message
+    assert str(blocker) in message
+    assert blocker.is_file()
+    assert not out.exists()

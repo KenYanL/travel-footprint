@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `--out` under a parent path that is a file now fails with an `InputError` that names both paths, before the map data is loaded and without a traceback. An `--out` that is itself a file already failed this way; that case is now tested too.
+
 ## [1.0.0] - 2026-11-17
 
 ### Added

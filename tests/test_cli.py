@@ -66,6 +66,42 @@ def test_non_utf8_config_is_rejected_without_a_traceback(
     assert not out.exists()
 
 
+def test_output_file_is_rejected_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "travel.yml"
+    config.write_text("countries:\n  - NZ\n", encoding="utf-8")
+    out = tmp_path / "dist"
+    out.write_text("not a directory\n", encoding="utf-8")
+    before = out.read_bytes()
+    code = main(["--config", str(config), "--out", str(out)])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "is a file" in captured.err
+    assert "Traceback" not in captured.err
+    assert out.is_file()
+    assert out.read_bytes() == before
+    assert not (tmp_path / "travel-map.png").exists()
+
+
+def test_output_blocked_by_a_parent_file_is_rejected_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "travel.yml"
+    config.write_text("countries:\n  - NZ\n", encoding="utf-8")
+    blocker = tmp_path / "blocked"
+    blocker.write_text("not a directory\n", encoding="utf-8")
+    out = blocker / "dist"
+    code = main(["--config", str(config), "--out", str(out)])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "cannot be created" in captured.err
+    assert str(blocker) in captured.err
+    assert "Traceback" not in captured.err
+    assert blocker.is_file()
+    assert not out.exists()
+
+
 def test_cli_renders_the_example(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     out = tmp_path / "dist"
     code = main(
